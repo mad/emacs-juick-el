@@ -24,7 +24,17 @@
 
 ;; (require 'juick)
 ;; (add-hook 'jabber-alert-message-hooks 'jabber-message-juick)
+
+;;; for better movement through id (#XXXXXX) and user name (@USER)
+
 ;; (define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
+
+;;; for teplace long link
+
+;; (define-key jabber-chat-mode-map "\C-ct" '(lambda()
+;; 					    (interactive)
+;; 					    (save-excursion
+;; 					      (tiny-url-replace jabber-point-insert))))
 
 ;;; Code:
 
@@ -132,6 +142,48 @@
     (progn
       (goto-char (point-max))
       (message "button not found"))))
+
+;;
+
+(defun tiny-url-replace(&optional pos)
+  "Replace normal url to tinyurl.com in the
+current buffer.
+
+If POS set to find url from this POS or
+`point-min'"
+  (interactive)
+  (goto-char (or pos (point-min)))
+  (while (re-search-forward "http://" nil t)
+    (goto-char (match-beginning 0))
+    (let* ((url-bounds (bounds-of-thing-at-point 'url))
+	   (url (thing-at-point 'url))
+	   (newurl
+	    (save-excursion
+	      (set-buffer
+	       (url-retrieve-synchronously
+		(concat "http://tinyurl.com/api-create.php?url=" url)))
+	      (goto-char (point-min))
+	      (re-search-forward "http://tinyurl.com/.*" nil t)
+	      (setq res (match-string 0))
+	      (kill-buffer) res)))
+      (save-restriction
+	(narrow-to-region (car url-bounds) (cdr url-bounds))
+	(delete-region (point-min) (point-max))
+	(insert newurl)))))
+
+;;; XXX: this doesn't work properly
+;; (defun jabber-chat-send-replace-url (jc body)
+;;   "Replace normal url to tinyurl.com/XXXX."
+;;   (message "hi %s" jabber-chatting-with)
+;;   (if (string-match "juick@juick.com" jabber-chatting-with)
+;;       (let ((newbody
+;; 	     (with-temp-buffer
+;; 	       (insert body)
+;; 	       (goto-char (point-min))
+;; 	       (tiny-url-replace)
+;; 	       (buffer-string))))
+;; 	(jabber-chat-send jc newbody))
+;;     (jabber-chat-send jc body)))
 
 (provide 'juick)
 ;;; juick.el ends here
