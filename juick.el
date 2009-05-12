@@ -28,7 +28,6 @@
 
 ;;; Code:
 
-(require 'jabber)
 (require 'button)
 
 (defgroup juick-faces nil "Faces for displaying Juick msg"
@@ -64,16 +63,15 @@
   "face for displaying underline text"
   :group 'juick-faces)
 
-
 (defvar juick-overlays nil)
 
 ;; from http://juick.com/help/
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
-(defvar juick-user-name-regex "[\n ]\\(@[0-9A-Za-z\-]+\\)")
-(defvar juick-tag-regex "\\:[\n]\\(\\*[^ \n\t$]+\\)")
+(defvar juick-user-name-regex "[\n ]\\(@[0-9A-Za-z\\-]+\\)")
+(defvar juick-tag-regex "\\:[\n]\\(\\*[^ \n$]+\\)")
 (defvar juick-bold-regex "[\n ]\\(\\*.*\\*\\)[\n ]")
 (defvar juick-italic-regex "[\n ]\\(/.*/\\)[\n ]")
-(defvar juick-underline-regex "[\n ]\\(\\_.*\\_\\)[\n ]")
+(defvar juick-underline-regex "[\n ]\\(\_.*\_\\)[\n ]")
 
 (defun juick-add-overlay (begin end faces)
   (let ((overlay (make-overlay begin end)))
