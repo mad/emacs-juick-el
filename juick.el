@@ -85,8 +85,8 @@
 
 (defun jabber-message-juick (from buffer text proposed-alert &optional last)
   "Markup juick msg"
-  (switch-to-buffer buffer)
   (save-excursion
+    (switch-to-buffer buffer)
     (setq startmsg (re-search-backward "juick@juick.com>" nil t))
     (if (or last startmsg)
         (while (re-search-forward
@@ -137,6 +137,7 @@
     (re-search-forward juick-id-regex nil t)
     (setq id (match-string 1))
     (set-text-properties 0 (length id) nil id)
+    (juick-find-buffer)
     (goto-char (point-max))
     (insert (concat id " ")))
   (goto-char (point-max))
@@ -149,6 +150,7 @@
     (re-search-forward juick-user-name-regex nil t)
     (setq id (match-string 1))
     (set-text-properties 0 (length id) nil id)
+    (juick-find-buffer)
     (goto-char (point-max))
     (insert (concat id " ")))
   (goto-char (point-max))
@@ -161,29 +163,53 @@
     (re-search-forward juick-tag-regex nil t)
     (setq tag (match-string 0))
     (set-text-properties 0 (length tag) nil tag)
+    (juick-find-buffer)
     (delete-region jabber-point-insert (point-max)))
   (goto-char (point-max))
-  (insert (concat tag ))
+  (insert tag)
   (jabber-chat-buffer-send))
+
+(defun juick-find-buffer ()
+  (interactive)
+  (if (not (string-match "*-jabber-chat-juick@juick.com-*" (buffer-name)))
+      (progn
+        (delete-window)
+        (let ((juick-window (get-window-with-predicate
+                             (lambda (w)
+                               (string-match
+                                "*-jabber-chat-juick@juick.com-*"
+                                (buffer-name (window-buffer w)))))))
+          (if juick-window
+              (select-window juick-window)
+            (jabber-chat-with (jabber-read-account) "juick@juick.com"))))))
 
 ;;;
 ;; (setq jabber-history-enabled t)
-;; (setq jabber-use-global-history nil)))
+;; (setq jabber-use-global-history nil)
 (defun juick-last-reply ()
+  "Retrive last reply"
   (interactive)
+  (split-window-vertically -10)
+  (windmove-down)
   (switch-to-buffer "*juick-last-reply*")
+  (toggle-read-only -1)
   (delete-region (point-min) (point-max))
   (setq list (jabber-history-query nil nil 10 "out" "juick@juick.com"
-                                 "~/.emacs-jabber/juick@juick.com"))
+                                (concat jabber-history-dir "/juick@juick.com")))
   (while list
     (let ((msg (aref (car list) 4)))
       (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)?\\)" msg 0)
           (progn
-            (if ( > (length msg) 10)
-                (insert (substring msg 0 10))
+            (if ( > (length msg) 20)
+                (insert (substring msg 0 20))
               (insert msg))
             (insert "\n"))))
     (setq list (cdr list)))
+  (goto-char (point-min))
+  (local-set-key "q" 'juick-find-buffer)
+  (local-set-key (kbd "TAB") 'juick-next-button)
+  (local-set-key (kbd "<backtab>") 'backward-button)
+  (toggle-read-only)
   (jabber-message-juick nil (current-buffer) nil nil t))
 
 (defun juick-next-button ()
