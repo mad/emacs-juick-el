@@ -85,8 +85,8 @@
 
 (defun jabber-message-juick (from buffer text proposed-alert)
   "Markup juick msg"
-  (switch-to-buffer buffer)
   (save-excursion
+    (switch-to-buffer buffer)
     (setq startmsg (re-search-backward "juick@juick.com>" nil t))
     (if startmsg
         (while (re-search-forward
