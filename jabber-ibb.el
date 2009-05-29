@@ -116,7 +116,7 @@
                         (point)
                         (+ (point) jabber-ibb-blocksize)))
       (goto-char (+ (point) jabber-ibb-blocksize)))
-    (if (= (point) (point-max))
+    (if (not (= (point) (point-max)))
         (jabber-ibb-send (buffer-substring (point) (point-max))))
     (jabber-ibb-close)))
 
