@@ -84,6 +84,15 @@
 (defvar juick-italic-regex "[\n ]\\(/.*/\\)[\n ]")
 (defvar juick-underline-regex "[\n ]\\(\_.*\_\\)[\n ]")
 
+(defvar juick-last-reply-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map text-mode-map)
+    (define-key map "q" 'juick-find-buffer)
+    (define-key map (kbd "TAB") 'juick-next-button)
+    (define-key map (kbd "<backtab>") 'backward-button)
+    map)
+  "Keymap for `juick-last-reply-mode'.")
+
 (defun juick-add-overlay (begin end faces)
   (let ((overlay (make-overlay begin end)))
     (overlay-put overlay 'face faces)
@@ -214,11 +223,13 @@
             (insert "\n"))))
     (setq list (cdr list)))
   (goto-char (point-min))
-  (local-set-key "q" 'juick-find-buffer)
-  (local-set-key (kbd "TAB") 'juick-next-button)
-  (local-set-key (kbd "<backtab>") 'backward-button)
   (toggle-read-only)
-  (jabber-message-juick nil (current-buffer) nil nil t))
+  (jabber-message-juick nil (current-buffer) nil nil t)
+  (juick-last-reply-mode))
+
+(define-derived-mode juick-last-reply-mode text-mode
+  "juick last reply"
+  "Major mode for getting last reply")
 
 (defun juick-next-button ()
   "move point to next button"
