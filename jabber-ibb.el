@@ -20,7 +20,8 @@
 
 ;;; Commentary:
 
-;;
+;; Its workaround for send image to juick.
+;; Its works ONLY one side.
 
 ;;; Code:
 
@@ -121,7 +122,6 @@
     (jabber-ibb-close)))
 
 (defun jabber-ibb (jc jid sid profile-function)
-  "TODO:docstring"
   (setq jabber-ibb-jc jc)
   (setq jabber-ibb-jid jid)
   (setq jabber-ibb-sid sid)
