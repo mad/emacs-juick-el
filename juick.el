@@ -211,16 +211,18 @@
   (switch-to-buffer "*juick-last-reply*")
   (toggle-read-only -1)
   (delete-region (point-min) (point-max))
-  (setq list (jabber-history-query nil nil 10 "out" "juick@juick.com"
+  ;; XXX: retrive last 200 msg, some of them '^#NNNN msg'
+  ;; make own history for juick and write only '^#NNNN msg'
+  ;; or retrive ALL history
+  (setq list (jabber-history-query nil nil 200 "out" "juick@juick.com"
                                 (concat jabber-history-dir "/juick@juick.com")))
   (while list
     (let ((msg (aref (car list) 4)))
-      (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)?\\)" msg 0)
+      (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
           (progn
-            (if ( > (length msg) 20)
-                (insert (substring msg 0 20))
-              (insert msg))
-            (insert "\n"))))
+            (if (> (length msg) 40)
+                (insert (concat (substring msg 0 40) "...\n"))
+              (insert (concat msg "\n"))))))
     (setq list (cdr list)))
   (goto-char (point-min))
   (toggle-read-only)
