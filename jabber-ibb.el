@@ -36,7 +36,7 @@
              (list "http://jabber.org/protocol/ibb"
                    'jabber-ibb))
 
-(defun jabber-ibb-send (data)
+(defun jabber-ibb-send (data sequence)
   "Sending data in an IQ stanza
 
 <iq from='romeo@montague.net/orchard'
@@ -58,7 +58,7 @@
                             (id . ,id)
                             (type . "set"))
                            (data ((xmlns . "http://jabber.org/protocol/ibb")
-                                  (seq . 0)
+                                  (seq . ,sequence)
                                   (sid . ,jabber-ibb-sid))
                                  ,data))))
     (jabber-send-sexp jabber-ibb-jc stanza-to-send)))
@@ -107,18 +107,19 @@
     (jabber-send-sexp jabber-ibb-jc stanza-to-send)))
 
 (defun jabber-ibb-send-split (data)
-  "Split DATA `jabber-ibb-blocksize' len and send it"
+  "Split DATA by `jabber-ibb-blocksize' byte and send it"
   (with-temp-buffer
     (insert data)
     (base64-encode-region (point-min) (point-max))
     (goto-char (point-min))
-    (while (> (- (point-max) (point)) jabber-ibb-blocksize)
-      (jabber-ibb-send (buffer-substring
-                        (point)
-                        (+ (point) jabber-ibb-blocksize)))
-      (goto-char (+ (point) jabber-ibb-blocksize)))
+    (let ((sequence 0))
+      (while (> (- (point-max) (point)) jabber-ibb-blocksize)
+        (jabber-ibb-send (buffer-substring (point) (+ (point) jabber-ibb-blocksize))
+                         sequence)
+        (setq sequence (+ sequence 1))
+        (goto-char (+ (point) jabber-ibb-blocksize))))
     (if (not (= (point) (point-max)))
-        (jabber-ibb-send (buffer-substring (point) (point-max))))
+        (jabber-ibb-send (buffer-substring (point) (point-max)) sequence))
     (jabber-ibb-close)))
 
 (defun jabber-ibb (jc jid sid profile-function)
