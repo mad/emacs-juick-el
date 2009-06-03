@@ -117,9 +117,9 @@
         (jabber-ibb-send (buffer-substring (point) (+ (point) jabber-ibb-blocksize))
                          sequence)
         (setq sequence (+ sequence 1))
-        (goto-char (+ (point) jabber-ibb-blocksize))))
-    (if (not (= (point) (point-max)))
-        (jabber-ibb-send (buffer-substring (point) (point-max)) sequence))
+        (goto-char (+ (point) jabber-ibb-blocksize)))
+      (if (not (= (point) (point-max)))
+          (jabber-ibb-send (buffer-substring (point) (point-max)) sequence)))
     (jabber-ibb-close)))
 
 (defun jabber-ibb (jc jid sid profile-function)
