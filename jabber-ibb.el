@@ -110,7 +110,7 @@
   "Split DATA by `jabber-ibb-blocksize' byte and send it"
   (with-temp-buffer
     (insert data)
-    (base64-encode-region (point-min) (point-max))
+    (base64-encode-region (point-min) (point-max) t)
     (goto-char (point-min))
     (let ((sequence 0))
       (while (> (- (point-max) (point)) jabber-ibb-blocksize)
