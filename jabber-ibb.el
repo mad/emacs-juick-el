@@ -1,4 +1,4 @@
-;;; jabber-ibb.el --- ibb XEP-0047
+;;; jabber-ibb.el --- workaround for send image in juick through IBB
 
 ;; Copyright (C) 2009 mad
 
@@ -20,8 +20,14 @@
 
 ;;; Commentary:
 
+;; THIS NOT PART jabber.el
+;; MAY BE DOES NOT PROPERLY WORK
 ;; Its workaround for send image to juick.
-;; Its works ONLY one side.
+
+;;; TODO:
+
+;; - make this using fsm
+;; - add incomning IBB
 
 ;;; Code:
 
