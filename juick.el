@@ -76,6 +76,8 @@
 
 (defvar juick-overlays nil)
 
+(defvar juick-pos-last-msg nil)
+
 ;; from http://juick.com/help/
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
 (defvar juick-user-name-regex "[\n ]\\(@[0-9A-Za-z\\-]+\\)")
@@ -107,8 +109,8 @@
   "Markup juick msg"
   (save-excursion
     (set-buffer buffer)
-    (setq startmsg (re-search-backward "juick@juick.com>" nil t))
-    (if (or last startmsg)
+    (setq juick-pos-last-msg (re-search-backward "juick@juick.com>" nil t))
+    (if (or last juick-pos-last-msg)
         (while (re-search-forward
                 (concat juick-id-regex "\\|"
                         juick-user-name-regex "\\|"
@@ -148,7 +150,8 @@
                  (progn
                    (juick-add-overlay (match-beginning 7) (match-end 7)
                                       'juick-underline-face)
-                   (goto-char (- (point) 1))))))))) ;; next ' ' or '\n'
+                   (goto-char (- (point) 1))))))))
+  (goto-char (or juick-pos-last-msg (point)))) ;; next ' ' or '\n'
 
 (defun juick-insert-reply-id (button)
   "Inserting reply id"
@@ -214,16 +217,16 @@
   ;; XXX: retrive last 200 msg, some of them '^#NNNN msg'
   ;; make own history for juick and write only '^#NNNN msg'
   ;; or retrive ALL history
-  (setq list (jabber-history-query nil nil 200 "out" "juick@juick.com"
-                                (concat jabber-history-dir "/juick@juick.com")))
-  (while list
-    (let ((msg (aref (car list) 4)))
-      (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
-          (progn
-            (if (> (length msg) 40)
-                (insert (concat (substring msg 0 40) "...\n"))
-              (insert (concat msg "\n"))))))
-    (setq list (cdr list)))
+  (let ((list (nreverse (jabber-history-query nil nil 200 "out" "juick@juick.com"
+                                              (concat jabber-history-dir "/juick@juick.com")))))
+    (while list
+      (let ((msg (aref (car list) 4)))
+        (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
+            (progn
+              (if (> (length msg) 40)
+                  (insert (concat (substring msg 0 40) "...\n"))
+                (insert (concat msg "\n"))))))
+      (setq list (cdr list))))
   (goto-char (point-min))
   (toggle-read-only)
   (jabber-message-juick nil (current-buffer) nil nil t)
