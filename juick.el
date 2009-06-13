@@ -20,7 +20,7 @@
 
 ;;; Commentary:
 
-;; Markup message from juick@juick.com and some usefull keybindings.
+;; Markup message recivied from juick@juick.com and some usefull keybindings.
 
 ;;; Installing:
 
@@ -44,7 +44,7 @@
 (defgroup juick-faces nil "Faces for displaying Juick msg"
   :group 'juick)
 
-(defface juick-reply-id-face
+(defface juick-id-face
   '((t (:weight bold)))
   "face for displaying id"
   :group 'juick-faces)
@@ -75,16 +75,17 @@
   :group 'juick-faces)
 
 (defvar juick-overlays nil)
+(defvar juick-point-last-message nil)
 
-(defvar juick-pos-last-msg nil)
+(defvar juick-bot-jid "juick@juick.com")
 
 ;; from http://juick.com/help/
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
-(defvar juick-user-name-regex "[\n ]\\(@[0-9A-Za-z\\-]+\\)")
-(defvar juick-tag-regex "\\:[\n]\\(\\*[^ \n$]+\\)")
-(defvar juick-bold-regex "[\n ]\\(\\*.*\\*\\)[\n ]")
-(defvar juick-italic-regex "[\n ]\\(/.*/\\)[\n ]")
-(defvar juick-underline-regex "[\n ]\\(\_.*\_\\)[\n ]")
+(defvar juick-user-name-regex "[^0-9A-Za-z\\.]\\(@[0-9A-Za-z@\\.\\-]+\\)")
+(defvar juick-tag-regex "\\(\\*[^ \n]+\\)")
+(defvar juick-bold-regex "\\(\\*[^ \n]+*\\*\\)")
+(defvar juick-italic-regex "\\(/[^ \n]+/\\)")
+(defvar juick-underline-regex "\\(\_[^ \n]+\_\\)")
 
 (defvar juick-last-reply-mode-map
   (let ((map (make-sparse-keymap)))
@@ -95,119 +96,28 @@
     map)
   "Keymap for `juick-last-reply-mode'.")
 
-(defun juick-add-overlay (begin end faces)
-  (let ((overlay (make-overlay begin end)))
-    (overlay-put overlay 'face faces)
-    (push overlay juick-overlays)))
+(defun jabber-message-juick (from buffer text proposed-alert &optional force)
+  "Markup  message from `juick-bot-jid'.
 
-(defun juick-delete-overlays ()
-  (dolist (overlay juick-overlays)
-    (delete-overlay overlay))
-  (setq juick-overlays nil))
+Where FROM is jid sender, BUFFER is buffer with message TEXT
 
-(defun jabber-message-juick (from buffer text proposed-alert &optional last)
-  "Markup juick msg"
-  (save-excursion
-    (set-buffer buffer)
-    (setq juick-pos-last-msg (re-search-backward "juick@juick.com>" nil t))
-    (if (or last juick-pos-last-msg)
-        (while (re-search-forward
-                (concat juick-id-regex "\\|"
-                        juick-user-name-regex "\\|"
-                        juick-tag-regex "\\|"
-                        juick-bold-regex "\\|"
-                        juick-italic-regex "\\|"
-                        juick-underline-regex) nil t)
-          (cond ((match-string 1) ;; #NNNNNN
-                 (progn
-                   (juick-add-overlay (match-beginning 1) (match-end 1)
-                                      'juick-reply-id-face)
-                   (make-button (match-beginning 1) (match-end 1)
-                                'action 'juick-insert-reply-id)))
-                ((match-string 3) ;; @user-name
-                 (progn
-                   (juick-add-overlay (match-beginning 3) (match-end 3)
-                                      'juick-user-name-face)
-                   (make-button (match-beginning 3) (match-end 3)
-                                'action 'juick-insert-user-name)))
-                ((match-string 4) ;; *tag
-                 (progn
-                   (juick-add-overlay (match-beginning 4) (match-end 4)
-                                      'juick-tag-face)
-                   (make-button (match-beginning 4) (match-end 4)
-                                'action 'juick-find-tag)))
-                ((match-string 5) ;; *bold*
-                 (progn
-                   (juick-add-overlay (match-beginning 5) (match-end 5)
-                                      'juick-bold-face)
-                   (goto-char (- (point) 1)))) ;; next ' ' or '\n'
-                ((match-string 6) ;; /italic/
-                 (progn
-                   (juick-add-overlay (match-beginning 6) (match-end 6)
-                                      'juick-italic-face)
-                   (goto-char (- (point) 1)))) ;; next ' ' or '\n'
-                ((match-string 7) ;; _underline_
-                 (progn
-                   (juick-add-overlay (match-beginning 7) (match-end 7)
-                                      'juick-underline-face)
-                   (goto-char (- (point) 1))))))))
-  (goto-char (or juick-pos-last-msg (point)))) ;; next ' ' or '\n'
+Use FORCE to markup any buffer"
+  (if (or force (string-match juick-bot-jid from))
+      (save-excursion
+        (setq juick-point-last-message
+              (re-search-backward (concat juick-bot-jid ">") nil t))
+        (set-buffer buffer)
+        (juick-markup-user-name)
+        (juick-markup-id)
+        (juick-markup-tag)
+        (juick-markup-bold)
+        (juick-markup-italic)
+        (juick-markup-underline))))
 
-(defun juick-insert-reply-id (button)
-  "Inserting reply id"
-  (save-excursion
-    (goto-char (overlay-start button))
-    (re-search-forward juick-id-regex nil t)
-    (setq id (match-string 1))
-    (set-text-properties 0 (length id) nil id)
-    (juick-find-buffer)
-    (goto-char (point-max))
-    (insert (concat id " ")))
-  (goto-char (point-max))
-  (recenter 10))
-
-(defun juick-insert-user-name (button)
-  "Inserting reply id"
-  (save-excursion
-    (goto-char (- (overlay-start button) 1)) ;; begining ' ' or '\n'
-    (re-search-forward juick-user-name-regex nil t)
-    (setq id (match-string 1))
-    (set-text-properties 0 (length id) nil id)
-    (juick-find-buffer)
-    (goto-char (point-max))
-    (insert (concat id " ")))
-  (goto-char (point-max))
-  (recenter 10))
-
-(defun juick-find-tag (button)
-  "Retrive 10 msg this tag"
-  (save-excursion
-    (goto-char (- (overlay-start button) 2)) ;; begining ':\n'
-    (re-search-forward juick-tag-regex nil t)
-    (setq tag (match-string 0))
-    (set-text-properties 0 (length tag) nil tag)
-    (juick-find-buffer)
-    (delete-region jabber-point-insert (point-max)))
-  (goto-char (point-max))
-  (insert tag)
-  (jabber-chat-buffer-send))
-
-(defun juick-find-buffer ()
-  (interactive)
-  (if (not (string-match "*-jabber-chat-juick@juick.com-*" (buffer-name)))
-      (progn
-        (delete-window)
-        (let ((juick-window (get-window-with-predicate
-                             (lambda (w)
-                               (string-match
-                                "*-jabber-chat-juick@juick.com-*"
-                                (buffer-name (window-buffer w)))))))
-          (if juick-window
-              (select-window juick-window)
-            (jabber-chat-with (jabber-read-account) "juick@juick.com"))))))
+(add-hook 'jabber-alert-message-hooks 'jabber-message-juick)
 
 (defun juick-last-reply ()
-  "Retrive last reply"
+  "View last message in own buffer"
   (interactive)
   (split-window-vertically -10)
   (windmove-down)
@@ -217,8 +127,9 @@
   ;; XXX: retrive last 200 msg, some of them '^#NNNN msg'
   ;; make own history for juick and write only '^#NNNN msg'
   ;; or retrive ALL history
-  (let ((list (nreverse (jabber-history-query nil nil 200 "out" "juick@juick.com"
-                                              (concat jabber-history-dir "/juick@juick.com")))))
+  (let ((list (nreverse (jabber-history-query nil nil 200 "out" juick-bot-jid
+                                              (concat jabber-history-dir
+                                                      (concat "/" juick-bot-jid))))))
     (while list
       (let ((msg (aref (car list) 4)))
         (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
@@ -233,8 +144,115 @@
   (juick-last-reply-mode))
 
 (define-derived-mode juick-last-reply-mode text-mode
-  "juick last reply"
+  "juick last reply mode"
   "Major mode for getting last reply")
+
+(define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
+(define-key jabber-chat-mode-map "\C-cjl" 'juick-last-reply)
+
+(defun juick-markup-user-name ()
+  "Markup user-name matched by regex `juick-regex-user-name'"
+  (goto-char (or juick-point-last-message (point-min)))
+  (while (re-search-forward juick-user-name-regex nil t)
+    (if (match-string 1)
+        (progn
+          (juick-add-overlay (match-beginning 1) (match-end 1)
+                             'juick-user-name-face)
+          (make-button (match-beginning 1) (match-end 1)
+                       'action 'juick-insert-user-name)))))
+
+(defun juick-markup-id ()
+  "Markup id matched by regex `juick-regex-id'"
+  (goto-char (or juick-point-last-message (point-min)))
+  (while (re-search-forward juick-id-regex nil t)
+    (if (match-string 1)
+        (progn
+          (juick-add-overlay (match-beginning 1) (match-end 1)
+                             'juick-id-face)
+          (make-button (match-beginning 1) (match-end 1)
+                       'action 'juick-insert-id)))))
+
+(defun juick-markup-tag ()
+  "Markup tag matched by regex `juick-regex-tag'"
+  (goto-char (or juick-point-last-message (point-min)))
+  ;;; FIXME: I dont know how to recognize a tag point
+  (while (re-search-forward "\\([:]\n\n\\|[:]\n\\|[\)]\n\n\\)" nil t)
+    ;;(goto-char (+ (point) (length (match-string 1))))
+    (let ((count-tag 0))
+      (while (and (looking-at "\\*")
+                  (<= count-tag 5))
+        (let ((beg-tag (point))
+              (end-tag (- (re-search-forward "[\n ]" nil t) 1)))
+          (juick-add-overlay beg-tag end-tag 'juick-tag-face)
+          (make-button beg-tag end-tag 'action 'juick-find-tag))
+        (setq count-tag (+ count-tag 1))))))
+
+(defun juick-markup-italic ()
+  (goto-char (or juick-point-last-message (point-min)))
+  (while (re-search-forward juick-bold-regex nil t)
+    (juick-add-overlay (match-beginning 1) (match-end 1)
+                       'juick-italic-face)))
+
+(defun juick-markup-bold ()
+  (goto-char (or juick-point-last-message (point-min)))
+  (while (re-search-forward juick-bold-regex nil t)
+    (juick-add-overlay (match-beginning 1) (match-end 1)
+                       'juick-bold-face)))
+
+(defun juick-markup-underline ()
+  (goto-char (or juick-point-last-message (point-min)))
+  (while (re-search-forward juick-bold-regex nil t)
+    (juick-add-overlay (match-beginning 1) (match-end 1)
+                       'juick-underline-face)))
+
+;;; XXX: maybe merge?
+(defun juick-insert-user-name (button)
+  "Inserting reply id in conversation buffer"
+  (let ((user-name (buffer-substring-no-properties
+                    (overlay-start button)
+                    (- (re-search-forward "[\n :]" nil t) 1))))
+    (juick-find-buffer)
+    (goto-char (point-max))
+    (insert (concat user-name " ")))
+  (recenter 10))
+
+(defun juick-insert-id (button)
+  "Inserting reply id in conversation buffer"
+  (let ((id (buffer-substring-no-properties
+             (overlay-start button)
+             (- (re-search-forward "[\n ]" nil t) 1))))
+    (juick-find-buffer)
+    (goto-char (point-max))
+    (insert (concat id " ")))
+  (recenter 10))
+
+(defun juick-find-tag (button)
+  "Retrive 10 message this tag"
+  (save-excursion
+    (let ((tag (buffer-substring-no-properties
+                (overlay-start button)
+                (re-search-forward "\\([\n ]\\|$\\)" nil t))))
+      (juick-find-buffer)
+      (delete-region jabber-point-insert (point-max))
+      (goto-char (point-max))
+      (insert tag)))
+  (jabber-chat-buffer-send))
+
+(defun juick-find-buffer ()
+  "Find buffer with `juick-bot-jid'"
+  (interactive)
+  (if (not (string-match (concat "*-jabber-chat-" juick-bot-jid "-*")
+                         (buffer-name)))
+      (progn
+        (delete-window)
+        (let ((juick-window (get-window-with-predicate
+                             (lambda (w)
+                               (string-match
+                                (concat "*-jabber-chat-" juick-bot-jid "-*")
+                                (buffer-name (window-buffer w)))))))
+          (if juick-window
+              (select-window juick-window)
+            (jabber-chat-with (jabber-read-account) juick-bot-jid))))))
 
 (defun juick-next-button ()
   "move point to next button"
@@ -245,9 +263,15 @@
       (goto-char (point-max))
       (message "button not found"))))
 
-(add-hook 'jabber-alert-message-hooks 'jabber-message-juick)
-(define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
-(define-key jabber-chat-mode-map "\C-cjl" 'juick-last-reply)
+(defun juick-add-overlay (begin end faces)
+  (let ((overlay (make-overlay begin end)))
+    (overlay-put overlay 'face faces)
+    (push overlay juick-overlays)))
+
+(defun juick-delete-overlays ()
+  (dolist (overlay juick-overlays)
+    (delete-overlay overlay))
+  (setq juick-overlays nil))
 
 (provide 'juick)
 ;;; juick.el ends here
