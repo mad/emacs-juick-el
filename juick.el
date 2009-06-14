@@ -79,6 +79,11 @@
 
 (defvar juick-bot-jid "juick@juick.com")
 
+(defvar jabber-ask-me-location nil
+  "If t then jabber ask your location when send message")
+(defvar jabber-default-location nil
+  "Send this location when `jabber-ask-me-location' nil")
+
 ;; from http://juick.com/help/
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
 (defvar juick-user-name-regex "[^0-9A-Za-z\\.]\\(@[0-9A-Za-z@\\.\\-]+\\)")
@@ -256,6 +261,61 @@ Use FORCE to markup any buffer"
           (if juick-window
               (select-window juick-window)
             (jabber-chat-with (jabber-read-account) juick-bot-jid))))))
+
+(defun jabber-chat-send-add-geoloc (body id)
+  "Add geoloc to message"
+  (if jabber-ask-me-location
+      (if (y-or-n-p "Add geoloc? ")
+          (jabber-make-geoloc-stanza))
+    (if jabber-default-location
+        (jabber-make-geoloc-stanza jabber-default-location))))
+
+(add-hook 'jabber-chat-send-hooks 'jabber-chat-send-add-geoloc)
+
+(defun jabber-make-geoloc-stanza (&optional location)
+  (let* ((maybe-loc (or location (read-string "Input your location: ")))
+         (maybe-loc (or location (google-map-get-loc maybe-loc))))
+    (if maybe-loc
+        (let ((loc-stanza
+               `((geoloc ((xmlns . "http://jabber.org/protocol/geoloc"))
+                         (lat nil ,(prin1-to-string (aref maybe-loc 1)))
+                         (lon nil ,(prin1-to-string (aref maybe-loc 0)))))))
+          loc-stanza)
+      (if (y-or-n-p (concat "Your location not found. Send without loc? "))
+          nil
+        (jabber-make-geoloc-stanza)))))
+
+(defun jabber-set-default-location (location)
+  "Set `jabber-default-location'"
+  (interactive "sInput your default location: ")
+  (let ((location (google-map-get-loc location)))
+    (if location
+        (progn
+          (message "Your default location set")
+          (setq jabber-default-location location))
+      (message "Your location not found."))))
+
+(defun google-map-get-loc (location)
+  "Get location ADDRES from google maps
+
+Return array with lat and lon (e.g. [30.333 59.3333])"
+  (let* ((request location)
+         (google-url (concat
+                      "http://maps.google.com/maps/geo?q="
+                      (url-hexify-string request)
+                      "&output=json&oe=utf8&sensor=true_or_false&key=emacs-jabber"))
+         (url-request-method "GET")
+         (content-buf (url-retrieve-synchronously google-url)))
+         (save-excursion
+           (set-buffer content-buf)
+           (goto-char (point-min))
+           (delete-region (point-min) (re-search-forward "\n\n" nil t))
+           (let ((maybe-loc (json-read)))
+             (kill-buffer (current-buffer))
+             (if (= (length maybe-loc) 3)
+                 (progn
+                   (cdar (cdar (aref (cdr (car maybe-loc)) 0))))
+               nil)))))
 
 (defun juick-next-button ()
   "move point to next button"
