@@ -83,9 +83,9 @@
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
 (defvar juick-user-name-regex "[^0-9A-Za-z\\.]\\(@[0-9A-Za-z@\\.\\-]+\\)")
 (defvar juick-tag-regex "\\(\\*[^ \n]+\\)")
-(defvar juick-bold-regex "\\(\\*[^ \n]+*\\*\\)")
-(defvar juick-italic-regex "\\(/[^ \n]+/\\)")
-(defvar juick-underline-regex "\\(\_[^ \n]+\_\\)")
+(defvar juick-bold-regex "[\n ]\\(\\*[^\n]+*\\*\\)[\n ]")
+(defvar juick-italic-regex "[\n ]\\(/[^\n]+/\\)[\n ]")
+(defvar juick-underline-regex "[\n ]\\(\_[^\n]+\_\\)[\n ]")
 
 (defvar juick-last-reply-mode-map
   (let ((map (make-sparse-keymap)))
@@ -189,21 +189,24 @@ Use FORCE to markup any buffer"
 
 (defun juick-markup-italic ()
   (goto-char (or juick-point-last-message (point-min)))
-  (while (re-search-forward juick-bold-regex nil t)
+  (while (re-search-forward juick-italic-regex nil t)
     (juick-add-overlay (match-beginning 1) (match-end 1)
-                       'juick-italic-face)))
+                       'juick-italic-face)
+    (goto-char (- (point) 1))))
 
 (defun juick-markup-bold ()
   (goto-char (or juick-point-last-message (point-min)))
   (while (re-search-forward juick-bold-regex nil t)
     (juick-add-overlay (match-beginning 1) (match-end 1)
-                       'juick-bold-face)))
+                       'juick-bold-face)
+    (goto-char (- (point) 1))))
 
 (defun juick-markup-underline ()
   (goto-char (or juick-point-last-message (point-min)))
-  (while (re-search-forward juick-bold-regex nil t)
+  (while (re-search-forward juick-underline-regex nil t)
     (juick-add-overlay (match-beginning 1) (match-end 1)
-                       'juick-underline-face)))
+                       'juick-underline-face)
+    (goto-char (- (point) 1))))
 
 ;;; XXX: maybe merge?
 (defun juick-insert-user-name (button)
