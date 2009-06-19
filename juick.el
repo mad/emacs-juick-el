@@ -295,6 +295,31 @@ Use FORCE to markup any buffer"
           (setq jabber-default-location location))
       (message "Your location not found."))))
 
+(defun jabber-pep-location-send ()
+  "Send your `jabber-default-location'
+
+Not work on many jabber servers"
+  (interactive)
+  (unless (memq jabber-buffer-connection jabber-connections)
+    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
+      (if new-jc
+          (setq jabber-buffer-connection new-jc)
+        (setq jabber-buffer-connection (jabber-read-account t)))))
+  (let* ((id (apply 'format "emacs-msg-%d.%d.%d" (current-time)))
+         (pep (if jabber-default-location
+                  (jabber-make-geoloc-stanza jabber-default-location)
+                (jabber-make-geoloc-stanza)))
+         (stanza-to-send `(iq
+                           ((from . (jabber-connection-bare-jid jabber-buffer-connection))
+                            (id . ,id)
+                            (type . "set"))
+                            (pubsub ((xmlns . "http://jabber.org/protocol/pubsub"))
+                                     (publish ((node . "http://jabber.org/protocol/geoloc"))
+                                              (item nil
+                                                    ,pep))))))
+    (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
+
+
 (defun google-map-get-loc (location)
   "Get location ADDRES from google maps
 
