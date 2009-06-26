@@ -176,7 +176,7 @@ Use FORCE to markup any buffer"
   "Markup tag matched by regex `juick-regex-tag'"
   (goto-char (or juick-point-last-message (point-min)))
   ;;; FIXME: I dont know how to recognize a tag point
-  (while (re-search-forward "\\([:]\n\n\\|[:]\n\\|[\)]\n\n\\)" nil t)
+  (while (re-search-forward (concat juick-user-name-regex  "\: ") nil t)
     ;;(goto-char (+ (point) (length (match-string 1))))
     (let ((count-tag 0))
       (while (and (looking-at "\\*")
