@@ -139,8 +139,10 @@ Use FORCE to markup any buffer"
                (image :type ,(juick-image-type filename)
                       :file ,filename))
          icon-string)
-        (re-search-backward "@" nil t)
-        (insert (concat icon-string " "))))))
+        (re-search-backward "\n" nil t)
+        (goto-char (+ (point) 1))
+        (insert (concat icon-string " "))
+        (re-search-forward "\n" nil t)))))
 
 (defun juick-avatar-filename (name)
   "Return avatar for NAME if not found, try download"
