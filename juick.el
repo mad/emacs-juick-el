@@ -55,7 +55,7 @@
   :group 'juick-faces)
 
 (defface juick-tag-face
-  '((t (:foreground "black" :background "light gray" :slant italic)))
+  '((t (:foreground "red4" :slant italic)))
   "face for displaying tags"
   :group 'juick-faces)
 
@@ -75,9 +75,18 @@
   :group 'juick-faces)
 
 (defvar juick-overlays nil)
-(defvar juick-point-last-message nil)
 
 (defvar juick-bot-jid "juick@juick.com")
+
+(defvar juick-image-buffer "*juick-avatar-dir*")
+
+(defvar juick-point-last-message nil)
+
+(defvar juick-icon-mode nil
+  "This mode display avatar in buffer chat")
+(defvar juick-tmp-dir
+  (expand-file-name (concat "juick-images-" (user-login-name))
+                    temporary-file-directory))
 
 ;; from http://juick.com/help/
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
@@ -104,6 +113,7 @@ Where FROM is jid sender, BUFFER is buffer with message TEXT
 Use FORCE to markup any buffer"
   (if (or force (string-match juick-bot-jid from))
       (save-excursion
+        (jabber-truncate-top)
         (setq juick-point-last-message
               (re-search-backward (concat juick-bot-jid ">") nil t))
         (set-buffer buffer)
@@ -112,9 +122,63 @@ Use FORCE to markup any buffer"
         (juick-markup-tag)
         (juick-markup-bold)
         (juick-markup-italic)
-        (juick-markup-underline))))
+        (juick-markup-underline)
+        (if (and juick-icon-mode window-system)
+            (juick-avatar-insert)))))
 
 (add-hook 'jabber-alert-message-hooks 'jabber-message-juick)
+
+(defun juick-avatar-insert ()
+  (goto-char (or juick-point-last-message (point-min)))
+  (let ((inhibit-read-only t))
+    (while (re-search-forward "^@\\([0-9A-Za-z@\\.\\-]+\\):" nil t)
+      (let ((icon-string "\n ")
+            (filename (juick-avatar-filename (match-string 1))))
+        (set-text-properties
+         1 2 `(display
+               (image :type ,(juick-image-type filename)
+                      :file ,filename))
+         icon-string)
+        (re-search-backward "@" nil t)
+        (insert (concat icon-string " "))))))
+
+(defun juick-avatar-filename (name)
+  "Return avatar for NAME if not found, try download"
+  (if (not (file-directory-p juick-tmp-dir))
+      (make-directory juick-tmp-dir))
+  (if (not (file-directory-p (concat juick-tmp-dir "/" name)))
+      (juick-avatar-download name))
+  (save-excursion
+    (call-process "/bin/bash" nil
+                  juick-image-buffer
+                  nil "-c" (concat "ls " juick-tmp-dir "/" name))
+    (set-buffer juick-image-buffer)
+    (goto-char (point-min))
+    (let ((maybe-img (if (re-search-forward "[0-9]+\\.\\(jpe?g\\|png\\|gif\\)" nil t)
+                         (concat juick-tmp-dir "/" name "/" (match-string 0)))))
+      (kill-buffer juick-image-buffer)
+      (if (= 0 (nth 7 (file-attributes maybe-img)))
+          (concat juick-tmp-dir "/default.png")
+        maybe-img))))
+
+(defun juick-avatar-download (name)
+  "Download avatar from juick.com and resize it"
+  (if (not (file-directory-p (concat juick-tmp-dir "/" name)))
+      (make-directory (concat juick-tmp-dir "/" name)))
+  (let ((def-dir default-directory))
+    (cd (concat juick-tmp-dir "/" name))
+    (call-process "/bin/bash" nil nil nil "-c"
+                  (concat "wget -q -O - juick.com/" name "/ "
+                          "| grep -o -E \"i.juick.com/a/[0-9]+\.(jpe?g|gif|png)\""
+                          "| xargs wget -q -N || touch 0.png"))
+    (cd def-dir)))
+
+(defun juick-image-type (file-name)
+  (cond
+   ((string-match "\\.jpe?g" file-name) 'jpeg)
+   ((string-match "\\.png" file-name) 'png)
+   ((string-match "\\.gif" file-name) 'gif)
+   (t nil)))
 
 (defun juick-last-reply ()
   "View last message in own buffer"
@@ -330,11 +394,6 @@ Return array with lat and lon (e.g. [30.333 59.3333])"
             (progn
               (cdar (cdar (aref (cdr (car maybe-loc)) 0))))
           nil)))))
-
-(defun juick-send-and-unsubscribe (body id)
-  "This hook send message and imideately send unsubscribe
-this message"
-  (interactive))
 
 (defun juick-next-button ()
   "move point to next button"
