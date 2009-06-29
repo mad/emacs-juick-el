@@ -292,7 +292,10 @@ Use FORCE to markup any buffer"
              (- (re-search-forward "[\n ]" nil t) 1))))
     (juick-find-buffer)
     (goto-char (point-max))
-    (insert (concat id " ")))
+    ;; usually #NNNN supposed #NNNN+
+    (if (string-match "/" id)
+	(insert (concat id " "))
+      (insert (concat id "+"))))
   (recenter 10))
 
 (defun juick-find-tag (button)
