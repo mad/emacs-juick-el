@@ -397,6 +397,24 @@ Return array with lat and lon (e.g. [30.333 59.3333])"
               (cdar (cdar (aref (cdr (car maybe-loc)) 0))))
           nil)))))
 
+(defadvice jabber-chat-send (around jabber-chat-send-around-advice
+                                    (jc body) activate)
+  "Check and correct juick command"
+  (if (string-match juick-bot-jid jabber-chatting-with)
+      (let* ((body (cond
+                    ((string= "№" body)
+                     "#")
+                    ((string= "РУДЗ" body)
+                     "HELP")
+                    ((string= "help" body)
+                     "HELP")
+                    ((string= "d l" body)
+                     "D L")
+                    (t
+                     body))))
+        ad-do-it)
+    ad-do-it))
+
 (defun juick-next-button ()
   "move point to next button"
   (interactive)
