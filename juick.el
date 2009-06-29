@@ -139,7 +139,8 @@ Use FORCE to markup any buffer"
                (image :type ,(juick-image-type filename)
                       :file ,filename))
          icon-string)
-        (re-search-backward "\n" nil t)
+        (or (re-search-backward "\n" nil t)
+	    (re-search-backward "@" nil t))
         (goto-char (+ (point) 1))
         (insert (concat icon-string " "))
         (re-search-forward "\n" nil t)))))
@@ -156,24 +157,47 @@ Use FORCE to markup any buffer"
                   nil "-c" (concat "ls " juick-tmp-dir "/" name))
     (set-buffer juick-image-buffer)
     (goto-char (point-min))
-    (let ((maybe-img (if (re-search-forward "[0-9]+\\.\\(jpe?g\\|png\\|gif\\)" nil t)
+    (let ((maybe-img (if (re-search-forward "[0-9]+\\.png" nil t)
                          (concat juick-tmp-dir "/" name "/" (match-string 0)))))
-      (kill-buffer juick-image-buffer)
-      (if (= 0 (nth 7 (file-attributes maybe-img)))
-          (concat juick-tmp-dir "/default.png")
-        maybe-img))))
+      (prog1
+	  maybe-img
+	(kill-buffer juick-image-buffer)))))
 
 (defun juick-avatar-download (name)
-  "Download avatar from juick.com and resize it"
+  "Download avatar from juick.com"
   (if (not (file-directory-p (concat juick-tmp-dir "/" name)))
       (make-directory (concat juick-tmp-dir "/" name)))
-  (let ((def-dir default-directory))
-    (cd (concat juick-tmp-dir "/" name))
-    (call-process "/bin/bash" nil nil nil "-c"
-                  (concat "wget -q -O - juick.com/" name "/ "
-                          "| grep -o -E \"i.juick.com/a/[0-9]+\.(jpe?g|gif|png)\""
-                          "| xargs wget -q -N || touch 0.png"))
-    (cd def-dir)))
+  (juick-avatar-download-and-save (juick-avatar-get-link name)))
+
+(defun juick-avatar-get-link (name)
+  "Getting avatar link for NAME"
+  (let* ((avatar-url (concat "http://juick.com/" name "/"))
+	 (url-request-method "GET")
+	 (content-buf (url-retrieve-synchronously avatar-url)))
+    (save-excursion
+      (set-buffer content-buf)
+      (goto-char (point-min))
+      (if (re-search-forward "http://i.juick.com/a/[0-9]+\.png" nil t)
+	  (prog1
+	      (match-string 0)
+	    (kill-buffer (current-buffer)))))))
+
+(defun juick-avatar-download-and-save (link)
+  "Extract image and save it"
+  (let* ((avatar-url link)
+	 (url-request-method "GET")
+	 (content-buf (url-retrieve-synchronously avatar-url)))
+    (save-excursion
+      (set-buffer content-buf)
+      (let ((buffer-file-coding-system 'binary)
+	    (file-coding-system 'binary)
+	    (coding-system-for-write 'binary))
+	(delete-region (point-min) (re-search-forward "\n\n" nil t))
+	(write-region (point-min) (point-max)
+		      (concat juick-tmp-dir "/" name "/"
+			      (substring link (string-match "[0-9]+" link)))))
+      (kill-buffer (current-buffer))
+      (kill-buffer content-buf))))
 
 (defun juick-image-type (file-name)
   (cond
