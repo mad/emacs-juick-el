@@ -470,7 +470,7 @@ from shell"
 
 ;;; TODO: check input
 (defun jabber-event-tune-send (to artist length rating source title track uri)
-  "Use this func if jabber server not support PEP"
+  "Use this func if jabber server not supported PEP"
   (unless (memq jabber-buffer-connection jabber-connections)
     (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
       (if new-jc
