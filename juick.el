@@ -468,6 +468,34 @@ from shell"
                                                          (uri nil ,uri)))))))))
     (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
 
+;;; TODO: check input
+(defun jabber-event-tune-send (to artist length rating source title track uri)
+  "Use this func if jabber server not support PEP"
+  (unless (memq jabber-buffer-connection jabber-connections)
+    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
+      (if new-jc
+          (setq jabber-buffer-connection new-jc)
+        (setq jabber-buffer-connection (jabber-read-account)))))
+  (let* ((gid (format "%08x-%04x-%04x-%04x-%012x"
+		      (random #xfffffff7)
+		      (random #xfff7) (random #xfff7) (random #xfff7)
+		      (random #xfffffff7)))
+         (stanza-to-send `(message
+                           ((from . ,(jabber-connection-bare-jid jabber-buffer-connection))
+			    (to . ,to))
+			   (event ((xmlns . "http://jabber.org/protocol/pubsub#event"))
+				  (items ((node . "http://jabber.org/protocol/tune"))
+					 (item ((id . ,gid))
+					       ((tune ((xmlns . "http://jabber.org/protocol/tune"))
+						      (artist nil ,artist)
+						      (length nil ,length)
+						      (rating nil ,rating)
+						      (source nil ,source)
+						      (title nil ,title)
+						      (track nil ,track)
+						      (uri nil ,uri)))))))))
+    (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
+
 (defadvice jabber-chat-send (around jabber-chat-send-around-advice
                                     (jc body) activate)
   "Check and correct juick command"
