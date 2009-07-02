@@ -165,9 +165,10 @@ Use FORCE to markup any buffer"
 
 (defun juick-avatar-download (name)
   "Download avatar from juick.com"
-  (if (not (file-directory-p (concat juick-tmp-dir "/" name)))
-      (make-directory (concat juick-tmp-dir "/" name)))
-  (juick-avatar-download-and-save (juick-avatar-get-link name)))
+  (let ((new-dir (concat juick-tmp-dir "/" name)))
+    (if (not (file-directory-p new-dir))
+        (make-directory new-dir))
+    (juick-avatar-download-and-save (juick-avatar-get-link name) new-dir)))
 
 (defun juick-avatar-get-link (name)
   "Getting avatar link for NAME"
@@ -182,9 +183,9 @@ Use FORCE to markup any buffer"
               (match-string 0)
             (kill-buffer (current-buffer)))))))
 
-(defun juick-avatar-download-and-save (link)
+(defun juick-avatar-download-and-save (link dir)
   "Extract image and save it"
-  (let* ((avatar-url link)
+  (let* ((avatar-url (concat "http://i.juick.com/as/" (substring link (string-match "[0-9]+" link))))
          (url-request-method "GET")
          (content-buf (url-retrieve-synchronously avatar-url)))
     (save-excursion
@@ -194,8 +195,7 @@ Use FORCE to markup any buffer"
             (coding-system-for-write 'binary))
         (delete-region (point-min) (re-search-forward "\n\n" nil t))
         (write-region (point-min) (point-max)
-                      (concat juick-tmp-dir "/" name "/"
-                              (substring link (string-match "[0-9]+" link)))))
+                      (concat dir "/" (substring link (string-match "[0-9]+" link)))))
       (kill-buffer (current-buffer))
       (kill-buffer content-buf))))
 
@@ -243,13 +243,13 @@ Use FORCE to markup any buffer"
   '(lambda ()
      (interactive)
      (if (looking-at "#[0-9]+")
-	 (save-excursion
-	   (let ((id (match-string-no-properties 0)))
-	     (jabber-chat-with (jabber-read-account) juick-bot-jid)
-	     (goto-char (point-max))
-	     (delete-region jabber-point-insert (point-max))
-	     (insert (concat "S " id))
-	     (jabber-chat-buffer-send)))
+         (save-excursion
+           (let ((id (match-string-no-properties 0)))
+             (jabber-chat-with (jabber-read-account) juick-bot-jid)
+             (goto-char (point-max))
+             (delete-region jabber-point-insert (point-max))
+             (insert (concat "S " id))
+             (jabber-chat-buffer-send)))
        (self-insert-command 1))))
 
 (defun juick-markup-user-name ()
@@ -489,23 +489,23 @@ from shell"
           (setq jabber-buffer-connection new-jc)
         (setq jabber-buffer-connection (jabber-read-account)))))
   (let* ((gid (format "%08x-%04x-%04x-%04x-%012x"
-		      (random #xfffffff7)
-		      (random #xfff7) (random #xfff7) (random #xfff7)
-		      (random #xfffffff7)))
+                      (random #xfffffff7)
+                      (random #xfff7) (random #xfff7) (random #xfff7)
+                      (random #xfffffff7)))
          (stanza-to-send `(message
                            ((from . ,(jabber-connection-bare-jid jabber-buffer-connection))
-			    (to . ,to))
-			   (event ((xmlns . "http://jabber.org/protocol/pubsub#event"))
-				  (items ((node . "http://jabber.org/protocol/tune"))
-					 (item ((id . ,gid))
-					       ((tune ((xmlns . "http://jabber.org/protocol/tune"))
-						      (artist nil ,artist)
-						      (length nil ,length)
-						      (rating nil ,rating)
-						      (source nil ,source)
-						      (title nil ,title)
-						      (track nil ,track)
-						      (uri nil ,uri)))))))))
+                            (to . ,to))
+                           (event ((xmlns . "http://jabber.org/protocol/pubsub#event"))
+                                  (items ((node . "http://jabber.org/protocol/tune"))
+                                         (item ((id . ,gid))
+                                               ((tune ((xmlns . "http://jabber.org/protocol/tune"))
+                                                      (artist nil ,artist)
+                                                      (length nil ,length)
+                                                      (rating nil ,rating)
+                                                      (source nil ,source)
+                                                      (title nil ,title)
+                                                      (track nil ,track)
+                                                      (uri nil ,uri)))))))))
     (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
 
 (defadvice jabber-chat-send (around jabber-chat-send-around-advice
