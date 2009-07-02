@@ -239,6 +239,18 @@ Use FORCE to markup any buffer"
 
 (define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
 (define-key jabber-chat-mode-map "\C-cjl" 'juick-last-reply)
+(define-key jabber-chat-mode-map "s"
+  '(lambda ()
+     (interactive)
+     (if (looking-at "#[0-9]+")
+	 (save-excursion
+	   (let ((id (match-string-no-properties 0)))
+	     (jabber-chat-with (jabber-read-account) juick-bot-jid)
+	     (goto-char (point-max))
+	     (delete-region jabber-point-insert (point-max))
+	     (insert (concat "S " id))
+	     (jabber-chat-buffer-send)))
+       (self-insert-command 1))))
 
 (defun juick-markup-user-name ()
   "Markup user-name matched by regex `juick-regex-user-name'"
