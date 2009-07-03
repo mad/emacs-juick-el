@@ -41,6 +41,11 @@
 
 (require 'button)
 
+(require 'jabber-geoloc)
+(require 'jabber-tune)
+
+(require 'google-maps)
+
 (defgroup juick-faces nil "Faces for displaying Juick msg"
   :group 'juick)
 
@@ -84,9 +89,16 @@
 
 (defvar juick-icon-mode nil
   "This mode display avatar in buffer chat")
+
+(defvar juick-icon-hight nil
+  "If t then show 96x96 avatars")
+
 (defvar juick-tmp-dir
   (expand-file-name (concat "juick-images-" (user-login-name))
                     temporary-file-directory))
+
+(if (not (file-directory-p juick-tmp-dir))
+    (make-directory juick-tmp-dir))
 
 ;; from http://juick.com/help/
 (defvar juick-id-regex "\\(#[0-9]+\\(/[0-9]+\\)?\\)")
@@ -105,7 +117,7 @@
     map)
   "Keymap for `juick-last-reply-mode'.")
 
-(defun jabber-message-juick (from buffer text proposed-alert &optional force)
+(defun juick-markup-chat (from buffer text proposed-alert &optional force)
   "Markup  message from `juick-bot-jid'.
 
 Where FROM is jid sender, BUFFER is buffer with message TEXT
@@ -126,85 +138,78 @@ Use FORCE to markup any buffer"
         (if (and juick-icon-mode window-system)
             (juick-avatar-insert)))))
 
-(add-hook 'jabber-alert-message-hooks 'jabber-message-juick)
+(add-hook 'jabber-alert-message-hooks 'juick-markup-chat)
 
 (defun juick-avatar-insert ()
   (goto-char (or juick-point-last-message (point-min)))
-  (let ((inhibit-read-only t))
+  (let ((inhibit-read-only t)
+        (avatar-list '()))
     (while (re-search-forward "^@\\([0-9A-Za-z@\\.\\-]+\\):" nil t)
-      (let ((icon-string "\n ")
-            (filename (juick-avatar-filename (match-string 1))))
+      (let* ((icon-string "\n ")
+             (name (match-string-no-properties 1))
+             (fake-png (concat juick-tmp-dir "/" name ".png")))
+        (push name avatar-list)
         (set-text-properties
          1 2 `(display
-               (image :type ,(juick-image-type filename)
-                      :file ,filename))
+               (image :type png
+                      :file ,fake-png))
          icon-string)
         (or (re-search-backward "\n" nil t)
             (re-search-backward "@" nil t))
         (goto-char (+ (point) 1))
         (insert (concat icon-string " "))
-        (re-search-forward "\n" nil t)))))
+        (re-search-forward "\n" nil t)))
+    (clear-image-cache)
+    (start-juick-avatar-download avatar-list)))
 
-(defun juick-avatar-filename (name)
-  "Return avatar for NAME if not found, try download"
-  (if (not (file-directory-p juick-tmp-dir))
-      (make-directory juick-tmp-dir))
-  (if (not (file-directory-p (concat juick-tmp-dir "/" name)))
-      (juick-avatar-download name))
-  (save-excursion
-    (call-process "/bin/bash" nil
-                  juick-image-buffer
-                  nil "-c" (concat "ls " juick-tmp-dir "/" name))
-    (set-buffer juick-image-buffer)
-    (goto-char (point-min))
-    (let ((maybe-img (if (re-search-forward "[0-9]+\\.png" nil t)
-                         (concat juick-tmp-dir "/" name "/" (match-string 0)))))
-      (prog1
-          maybe-img
-        (kill-buffer juick-image-buffer)))))
+(define-state-machine juick-avatar-download
+  :start ((avatar-list)
+          "Download avatar"
+          (list 'next avatar-list nil)))
+
+(define-enter-state juick-avatar-download next
+  (fsm state-data)
+  (list state-data 0))
+
+(define-state juick-avatar-download next
+  (fsm state-data event callback)
+  (let ((avatar-list state-data))
+    (while avatar-list
+      (juick-avatar-download (car avatar-list))
+      (setq avatar-list (cdr avatar-list))))
+  (list nil nil))
 
 (defun juick-avatar-download (name)
   "Download avatar from juick.com"
-  (let ((new-dir (concat juick-tmp-dir "/" name)))
-    (if (not (file-directory-p new-dir))
-        (make-directory new-dir))
-    (juick-avatar-download-and-save (juick-avatar-get-link name) new-dir)))
+  (if (file-exists-p (concat juick-tmp-dir "/" name ".png"))
+      nil
+    (let ((avatar-url (concat "http://juick.com/" name "/"))
+          (url-request-method "GET"))
+      (url-retrieve avatar-url
+                    '(lambda (status name)
+                       (let ((result-buffer (current-buffer)))
+                         (goto-char (point-min))
+                         (if (re-search-forward "http://i.juick.com/a/[0-9]+\.png" nil t)
+                           (juick-avatar-download-and-save (match-string 0) name)
+                           (kill-buffer result-buffer))))
+                    (list name)))))
 
-(defun juick-avatar-get-link (name)
-  "Getting avatar link for NAME"
-  (let* ((avatar-url (concat "http://juick.com/" name "/"))
-         (url-request-method "GET")
-         (content-buf (url-retrieve-synchronously avatar-url)))
-    (save-excursion
-      (set-buffer content-buf)
-      (goto-char (point-min))
-      (if (re-search-forward "http://i.juick.com/a/[0-9]+\.png" nil t)
-          (prog1
-              (match-string 0)
-            (kill-buffer (current-buffer)))))))
-
-(defun juick-avatar-download-and-save (link dir)
-  "Extract image and save it"
-  (let* ((avatar-url (concat "http://i.juick.com/as/" (substring link (string-match "[0-9]+" link))))
-         (url-request-method "GET")
-         (content-buf (url-retrieve-synchronously avatar-url)))
-    (save-excursion
-      (set-buffer content-buf)
-      (let ((buffer-file-coding-system 'binary)
-            (file-coding-system 'binary)
-            (coding-system-for-write 'binary))
-        (delete-region (point-min) (re-search-forward "\n\n" nil t))
-        (write-region (point-min) (point-max)
-                      (concat dir "/" (substring link (string-match "[0-9]+" link)))))
-      (kill-buffer (current-buffer))
-      (kill-buffer content-buf))))
-
-(defun juick-image-type (file-name)
-  (cond
-   ((string-match "\\.jpe?g" file-name) 'jpeg)
-   ((string-match "\\.png" file-name) 'png)
-   ((string-match "\\.gif" file-name) 'gif)
-   (t nil)))
+(defun juick-avatar-download-and-save (link name)
+  "Extract image frim LINK and save it with NAME in
+`juick-tmp-dir'"
+  (let* ((filename (substring link (string-match "[0-9]+" link)))
+         (avatar-url (concat "http://i.juick.com/" (if juick-icon-hight "a" "as") "/" filename))
+         (url-request-method "GET"))
+    (url-retrieve avatar-url
+                  '(lambda (status name)
+                     (let ((result-buffer (current-buffer))
+                           (buffer-file-coding-system 'binary)
+                           (file-coding-system 'binary)
+                           (coding-system-for-write 'binary))
+                       (delete-region (point-min) (re-search-forward "\n\n" nil t))
+                       (write-region (point-min) (point-max) (concat juick-tmp-dir "/" name ".png"))
+                       (kill-buffer result-buffer)))
+                  (list name))))
 
 (defun juick-last-reply ()
   "View last message in own buffer"
@@ -243,14 +248,26 @@ Use FORCE to markup any buffer"
   '(lambda ()
      (interactive)
      (if (looking-at "#[0-9]+")
-         (save-excursion
-           (let ((id (match-string-no-properties 0)))
-             (jabber-chat-with (jabber-read-account) juick-bot-jid)
-             (goto-char (point-max))
-             (delete-region jabber-point-insert (point-max))
-             (insert (concat "S " id))
-             (jabber-chat-buffer-send)))
+         (juick-send-message juick-bot-jid
+                             (concat "S " (match-string-no-properties 0)))
        (self-insert-command 1))))
+(define-key jabber-chat-mode-map "u"
+  '(lambda ()
+     (interactive)
+     (if (looking-at "#[0-9]+")
+         (juick-send-message juick-bot-jid
+                             (concat "U " (match-string-no-properties 0)))
+       (self-insert-command 1))))
+
+(defun juick-send-message (to text)
+  "Send TEXT to TO imediately"
+  (interactive)
+  (save-excursion
+    (jabber-chat-with (jabber-read-account) to)
+    (goto-char (point-max))
+    (delete-region jabber-point-insert (point-max))
+    (insert text)
+    (jabber-chat-buffer-send)))
 
 (defun juick-markup-user-name ()
   "Markup user-name matched by regex `juick-regex-user-name'"
@@ -361,152 +378,6 @@ Use FORCE to markup any buffer"
           (if juick-window
               (select-window juick-window)
             (jabber-chat-with (jabber-read-account) juick-bot-jid))))))
-
-(defun jabber-chat-send-add-geoloc (body id)
-  "Add geoloc to message"
-  (jabber-geoloc-make-stanza))
-
-(defun jabber-chat-send-with-location ()
-  "Wrapper for add `jabber-chat-send-add-geoloc'"
-  (interactive)
-  (add-hook 'jabber-chat-send-hooks 'jabber-chat-send-add-geoloc)
-  (jabber-chat-buffer-send)
-  (remove-hook 'jabber-chat-send-hooks 'jabber-chat-send-add-geoloc))
-
-(defun jabber-geoloc-make-stanza ()
-  (let* ((maybe-loc (read-string "Input your location: "))
-         (maybe-loc (google-map-get-location maybe-loc)))
-    (if maybe-loc
-        (let ((loc-stanza
-               `((geoloc ((xmlns . "http://jabber.org/protocol/geoloc"))
-                         (lat nil ,(prin1-to-string (aref maybe-loc 1)))
-                         (lon nil ,(prin1-to-string (aref maybe-loc 0)))))))
-          loc-stanza)
-      (if (y-or-n-p (concat "Your location not found. Send without loc? "))
-          nil
-        (jabber-geoloc-make-stanza)))))
-
-(define-key jabber-chat-mode-map "\C-cjg" 'jabber-chat-send-with-location)
-
-(defun jabber-pep-location-send ()
-  "Send PEP with your location
-
-Not work on many jabber servers"
-  (interactive)
-  (unless (memq jabber-buffer-connection jabber-connections)
-    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
-      (if new-jc
-          (setq jabber-buffer-connection new-jc)
-        (setq jabber-buffer-connection (jabber-read-account t)))))
-  (let* ((id (apply 'format "emacs-msg-%d.%d.%d" (current-time)))
-         (pep (jabber-geoloc-make-stanza))
-         (stanza-to-send `(iq
-                           ((from . ,(jabber-connection-bare-jid jabber-buffer-connection))
-                            (id . ,id)
-                            (type . "set"))
-                           (pubsub ((xmlns . "http://jabber.org/protocol/pubsub"))
-                                   (publish ((node . "http://jabber.org/protocol/geoloc"))
-                                            (item nil
-                                                  ,pep))))))
-    (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
-
-(define-key jabber-chat-mode-map "\C-cjp" 'jabber-pep-location-send)
-
-(defun google-map-get-location (location)
-  "Get coordinates location LOCATION from google maps
-\(Geocoding via HTTP\
-\"http://code.google.com/apis/maps/documentation/services.html#Geocoding_Direct\" \)
-
-Return array with lat and lon (e.g. [30.333 59.3333])"
-  (let* ((request location)
-         (google-url (concat
-                      "http://maps.google.com/maps/geo?q="
-                      (url-hexify-string request)
-                      "&output=json&oe=utf8&sensor=true_or_false&key=emacs-jabber"))
-         (url-request-method "GET")
-         (content-buf (url-retrieve-synchronously google-url)))
-    (save-excursion
-      (set-buffer content-buf)
-      (goto-char (point-min))
-      (delete-region (point-min) (re-search-forward "\n\n" nil t))
-      (let ((maybe-loc (json-read)))
-        (kill-buffer (current-buffer))
-        (if (= (length maybe-loc) 3)
-            (progn
-              (cdar (cdar (aref (cdr (car maybe-loc)) 0))))
-          nil)))))
-
-;;; TODO: check input
-(defun jabber-pep-tune-send (artist length rating source title track uri)
-  "if you use emms then add to your configure file this line:
-
-\(add-hook \'emms-player-started-hook
-          \'\(lambda \()
-             \(let* \(\(emms-current-track \(emms-playlist-current-selected-track)))
-               \(run-with-timer 10 nil \'jabber-pep-tune-send
-                               \(emms-track-get emms-current-track \'info-artist)
-                               \(number-to-string \(or \(emms-track-get emms-current-track \'info-playing-time) 0))
-                               \"0\" ;;; use rating ?
-                               \(emms-track-get emms-current-track \'info-album)
-                               \(emms-track-get emms-current-track \'info-title)
-                               \(emms-track-get emms-current-track \'info-tracknumber)
-                               \"\"))))
-
-or other player use for example this:
-
-emacsclient --eval \"(jabber-pep-tune-send \"AC/DC\" \"251\" \"8\" \"T.N.T.\" \"Rock'N'Roll Singer\" \"2\" \"\")\"
-
-from shell"
-  (unless (memq jabber-buffer-connection jabber-connections)
-    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
-      (if new-jc
-          (setq jabber-buffer-connection new-jc)
-        (setq jabber-buffer-connection (jabber-read-account)))))
-  (let* ((id (apply 'format "emacs-msg-%d.%d.%d" (current-time)))
-         (stanza-to-send `(iq
-                           ((from . ,(jabber-connection-bare-jid jabber-buffer-connection))
-                            (id . ,id)
-                            (type . "set"))
-                           (pubsub ((xmlns . "http://jabber.org/protocol/pubsub"))
-                                   (publish ((node . "http://jabber.org/protocol/tune"))
-                                            (item nil
-                                                  ((tune ((xmlns . "http://jabber.org/protocol/tune"))
-                                                         (artist nil ,artist)
-                                                         (length nil ,length)
-                                                         (rating nil ,rating)
-                                                         (source nil ,source)
-                                                         (title nil ,title)
-                                                         (track nil ,track)
-                                                         (uri nil ,uri)))))))))
-    (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
-
-;;; TODO: check input
-(defun jabber-event-tune-send (to artist length rating source title track uri)
-  "Use this func if jabber server not supported PEP"
-  (unless (memq jabber-buffer-connection jabber-connections)
-    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
-      (if new-jc
-          (setq jabber-buffer-connection new-jc)
-        (setq jabber-buffer-connection (jabber-read-account)))))
-  (let* ((gid (format "%08x-%04x-%04x-%04x-%012x"
-                      (random #xfffffff7)
-                      (random #xfff7) (random #xfff7) (random #xfff7)
-                      (random #xfffffff7)))
-         (stanza-to-send `(message
-                           ((from . ,(jabber-connection-bare-jid jabber-buffer-connection))
-                            (to . ,to))
-                           (event ((xmlns . "http://jabber.org/protocol/pubsub#event"))
-                                  (items ((node . "http://jabber.org/protocol/tune"))
-                                         (item ((id . ,gid))
-                                               ((tune ((xmlns . "http://jabber.org/protocol/tune"))
-                                                      (artist nil ,artist)
-                                                      (length nil ,length)
-                                                      (rating nil ,rating)
-                                                      (source nil ,source)
-                                                      (title nil ,title)
-                                                      (track nil ,track)
-                                                      (uri nil ,uri)))))))))
-    (jabber-send-sexp jabber-buffer-connection stanza-to-send)))
 
 (defadvice jabber-chat-send (around jabber-chat-send-around-advice
                                     (jc body) activate)
