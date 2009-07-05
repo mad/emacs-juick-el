@@ -247,16 +247,32 @@ Use FORCE to markup any buffer"
 (define-key jabber-chat-mode-map "s"
   '(lambda ()
      (interactive)
-     (if (looking-at "#[0-9]+")
+     (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
          (juick-send-message juick-bot-jid
                              (concat "S " (match-string-no-properties 0)))
        (self-insert-command 1))))
 (define-key jabber-chat-mode-map "u"
   '(lambda ()
      (interactive)
-     (if (looking-at "#[0-9]+")
+     (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
          (juick-send-message juick-bot-jid
                              (concat "U " (match-string-no-properties 0)))
+       (self-insert-command 1))))
+(define-key jabber-chat-mode-map "d"
+  '(lambda ()
+     (interactive)
+     (if (looking-at "#[0-9]+\\(/[0-9]+\\)?")
+         (juick-send-message juick-bot-jid
+                             (concat "D " (match-string-no-properties 0)))
+       (self-insert-command 1))))
+(define-key jabber-chat-mode-map "p"
+  '(lambda ()
+     (interactive)
+     (if (looking-at "@[0-9A-Za-z@\.\-]+")
+         (progn
+           (goto-char (point-max))
+           (delete-region jabber-point-insert (point-max))
+           (insert (concat "PM " (match-string-no-properties 0) " ")))
        (self-insert-command 1))))
 
 (defun juick-send-message (to text)
