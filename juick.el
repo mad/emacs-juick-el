@@ -142,13 +142,12 @@ Use FORCE to markup any buffer"
 
 (defun juick-avatar-insert ()
   (goto-char (or juick-point-last-message (point-min)))
-  (let ((inhibit-read-only t)
-        (avatar-list '()))
+  (let ((inhibit-read-only t))
     (while (re-search-forward "^@\\([0-9A-Za-z@\\.\\-]+\\):" nil t)
       (let* ((icon-string "\n ")
              (name (match-string-no-properties 1))
              (fake-png (concat juick-tmp-dir "/" name ".png")))
-        (push name avatar-list)
+        (juick-avatar-download name)
         (set-text-properties
          1 2 `(display
                (image :type png
@@ -159,25 +158,7 @@ Use FORCE to markup any buffer"
         (goto-char (+ (point) 1))
         (insert (concat icon-string " "))
         (re-search-forward "\n" nil t)))
-    (clear-image-cache)
-    (start-juick-avatar-download avatar-list)))
-
-(define-state-machine juick-avatar-download
-  :start ((avatar-list)
-          "Download avatar"
-          (list 'next avatar-list nil)))
-
-(define-enter-state juick-avatar-download next
-  (fsm state-data)
-  (list state-data 0))
-
-(define-state juick-avatar-download next
-  (fsm state-data event callback)
-  (let ((avatar-list state-data))
-    (while avatar-list
-      (juick-avatar-download (car avatar-list))
-      (setq avatar-list (cdr avatar-list))))
-  (list nil nil))
+    (clear-image-cache)))
 
 (defun juick-avatar-download (name)
   "Download avatar from juick.com"
@@ -189,7 +170,7 @@ Use FORCE to markup any buffer"
                     '(lambda (status name)
                        (let ((result-buffer (current-buffer)))
                          (goto-char (point-min))
-                         (if (re-search-forward "http://i.juick.com/a/[0-9]+\.png" nil t)
+                         (when (re-search-forward "http://i.juick.com/a/[0-9]+\.png" nil t)
                            (juick-avatar-download-and-save (match-string 0) name)
                            (kill-buffer result-buffer))))
                     (list name)))))
@@ -208,6 +189,7 @@ Use FORCE to markup any buffer"
                            (coding-system-for-write 'binary))
                        (delete-region (point-min) (re-search-forward "\n\n" nil t))
                        (write-region (point-min) (point-max) (concat juick-tmp-dir "/" name ".png"))
+                       (kill-buffer (current-buffer))
                        (kill-buffer result-buffer)))
                   (list name))))
 
@@ -227,11 +209,10 @@ Use FORCE to markup any buffer"
                                                       (concat "/" juick-bot-jid))))))
     (while list
       (let ((msg (aref (car list) 4)))
-        (if (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
-            (progn
-              (if (> (length msg) 40)
-                  (insert (concat (substring msg 0 40) "...\n"))
-                (insert (concat msg "\n"))))))
+        (when (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
+          (if (> (length msg) 40)
+              (insert (concat (substring msg 0 40) "...\n"))
+            (insert (concat msg "\n")))))
       (setq list (cdr list))))
   (goto-char (point-min))
   (toggle-read-only)
@@ -289,23 +270,21 @@ Use FORCE to markup any buffer"
   "Markup user-name matched by regex `juick-regex-user-name'"
   (goto-char (or juick-point-last-message (point-min)))
   (while (re-search-forward juick-user-name-regex nil t)
-    (if (match-string 1)
-        (progn
-          (juick-add-overlay (match-beginning 1) (match-end 1)
-                             'juick-user-name-face)
-          (make-button (match-beginning 1) (match-end 1)
-                       'action 'juick-insert-user-name)))))
+    (when (match-string 1)
+      (juick-add-overlay (match-beginning 1) (match-end 1)
+                         'juick-user-name-face)
+      (make-button (match-beginning 1) (match-end 1)
+                   'action 'juick-insert-user-name))))
 
 (defun juick-markup-id ()
   "Markup id matched by regex `juick-regex-id'"
   (goto-char (or juick-point-last-message (point-min)))
   (while (re-search-forward juick-id-regex nil t)
-    (if (match-string 1)
-        (progn
-          (juick-add-overlay (match-beginning 1) (match-end 1)
-                             'juick-id-face)
-          (make-button (match-beginning 1) (match-end 1)
-                       'action 'juick-insert-id)))))
+    (when (match-string 1)
+      (juick-add-overlay (match-beginning 1) (match-end 1)
+                         'juick-id-face)
+      (make-button (match-beginning 1) (match-end 1)
+                   'action 'juick-insert-id))))
 
 (defun juick-markup-tag ()
   "Markup tag matched by regex `juick-regex-tag'"
@@ -382,18 +361,17 @@ Use FORCE to markup any buffer"
 (defun juick-find-buffer ()
   "Find buffer with `juick-bot-jid'"
   (interactive)
-  (if (not (string-match (concat "*-jabber-chat-" juick-bot-jid "-*")
-                         (buffer-name)))
-      (progn
-        (delete-window)
-        (let ((juick-window (get-window-with-predicate
-                             (lambda (w)
-                               (string-match
-                                (concat "*-jabber-chat-" juick-bot-jid "-*")
-                                (buffer-name (window-buffer w)))))))
-          (if juick-window
-              (select-window juick-window)
-            (jabber-chat-with (jabber-read-account) juick-bot-jid))))))
+  (when (not (string-match (concat "*-jabber-chat-" juick-bot-jid "-*")
+                           (buffer-name)))
+    (delete-window)
+    (let ((juick-window (get-window-with-predicate
+                         (lambda (w)
+                           (string-match
+                            (concat "*-jabber-chat-" juick-bot-jid "-*")
+                            (buffer-name (window-buffer w)))))))
+      (if juick-window
+          (select-window juick-window)
+        (jabber-chat-with (jabber-read-account) juick-bot-jid)))))
 
 (defadvice jabber-chat-send (around jabber-chat-send-around-advice
                                     (jc body) activate)
