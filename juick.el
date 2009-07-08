@@ -87,6 +87,9 @@
 
 (defvar juick-point-last-message nil)
 
+(defvar juick-avatar-internal-stack nil
+  "Internal var")
+
 (defvar juick-icon-mode nil
   "This mode display avatar in buffer chat")
 
@@ -150,10 +153,11 @@ Use FORCE to markup any buffer"
 
 (defun juick-avatar-insert ()
   (goto-char (or juick-point-last-message (point-min)))
+  (setq juick-avatar-internal-stack nil)
   (let ((inhibit-read-only t))
-    (while (re-search-forward "^@\\([0-9A-Za-z@\\.\\-]+\\):" nil t)
+    (while (re-search-forward "\\(by @\\|> @\\|^@\\)\\([0-9A-Za-z@\\.\\-]+\\):" nil t)
       (let* ((icon-string "\n ")
-             (name (match-string-no-properties 1))
+             (name (match-string-no-properties 2))
              (fake-png (concat juick-tmp-dir "/" name ".png")))
         (juick-avatar-download name)
         (set-text-properties
@@ -161,19 +165,19 @@ Use FORCE to markup any buffer"
                (image :type png
                       :file ,fake-png))
          icon-string)
-        (or (re-search-backward "\n" nil t)
-            (re-search-backward "@" nil t))
-        (goto-char (+ (point) 1))
+        (re-search-backward "@" nil t)
         (insert (concat icon-string " "))
-        (re-search-forward "\n" nil t)))
+        (re-search-forward ":" nil t)))
     (clear-image-cache)))
 
 (defun juick-avatar-download (name)
   "Download avatar from juick.com"
-  (if (file-exists-p (concat juick-tmp-dir "/" name ".png"))
+  (if (or (assoc-string name juick-avatar-internal-stack)
+          (file-exists-p (concat juick-tmp-dir "/" name ".png")))
       nil
     (let ((avatar-url (concat "http://juick.com/" name "/"))
           (url-request-method "GET"))
+      (push name juick-avatar-internal-stack)
       (url-retrieve avatar-url
                     '(lambda (status name)
                        (let ((result-buffer (current-buffer)))
