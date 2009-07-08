@@ -232,15 +232,18 @@ Use FORCE to markup any buffer"
                   '(lambda (jc xml-data closure-data)
                      (let ((juick-query (jabber-xml-get-children
                                          (car (jabber-xml-get-children xml-data 'query))
-                                         'juick)))
+                                         'juick))
+                           (first-message t)) ;; XXX: i dont know how break out of dolist
                        (dolist (x juick-query)
                          (if (> (string-to-number (jabber-xml-get-attribute x 'mid))
                                 (string-to-number (or juick-api-aftermid "0")))
                              (setq juick-api-aftermid (jabber-xml-get-attribute x 'mid)))
+                         (setq first-message t)
                          (dolist (tag (jabber-xml-get-children x 'tag))
-                           (when (assoc-string (car (jabber-xml-node-children tag))
-                                               juick-tag-subscribed)
+                           (when (and first-message (assoc-string (car (jabber-xml-node-children tag))
+                                                                  juick-tag-subscribed))
                              ;; make fake incomning message
+                             (setq first-message nil)
                              (jabber-process-chat
                               (jabber-read-account)
                               `(message
