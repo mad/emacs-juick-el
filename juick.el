@@ -93,6 +93,14 @@
 (defvar juick-icon-hight nil
   "If t then show 96x96 avatars")
 
+(defvar juick-tag-subscribed '()
+  "List subscribed tags")
+
+(defvar juick-last-ten-messages '())
+
+(defvar juick-timer-interval 120)
+(defvar juick-timer nil)
+
 (defvar juick-tmp-dir
   (expand-file-name (concat "juick-images-" (user-login-name))
                     temporary-file-directory))
@@ -192,6 +200,68 @@ Use FORCE to markup any buffer"
                        (kill-buffer (current-buffer))
                        (kill-buffer result-buffer)))
                   (list name))))
+
+(defun juick-auto-update (&optional arg)
+  (interactive "P")
+  (let ((arg (if (numberp arg)
+                 (prefix-numeric-value arg)
+               1)))
+    (cond
+     ((and (> arg 0) (null juick-timer))
+       (setq juick-timer
+             (run-at-time "0 sec"
+                          juick-timer-interval
+                          #'juick-api-request-stanza))
+       (message "auto update activated"))
+     ((and (<= arg 0) juick-timer)
+      (cancel-timer juick-timer)
+      (setq juick-timer nil)
+      (message "auto update deactivated")))))
+
+(defun juick-api-request-stanza ()
+  "Make and process juick stanza
+\(http://juick.com/help/api/xmpp/)"
+  (unless (memq jabber-buffer-connection jabber-connections)
+    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
+      (if new-jc
+          (setq jabber-buffer-connection new-jc)
+        (setq jabber-buffer-connection (jabber-read-account)))))
+  (jabber-send-iq jabber-buffer-connection juick-bot-jid "get"
+                  `(query ((xmlns ."http://juick.com/query#messages")))
+                  '(lambda (jc xml-data closure-data)
+                     (let ((juick-query (jabber-xml-get-children
+                                         (car (jabber-xml-get-children xml-data 'query))
+                                         'juick)))
+                       (dolist (x juick-query)
+                         (dolist (tag (jabber-xml-get-children x 'tag))
+                           (if (assoc-string (car (jabber-xml-node-children tag))
+                                             juick-tag-subscribed)
+                               ;; make fake incomning message
+                               (when (not (assoc-string (jabber-xml-get-attribute x 'mid)
+                                                        juick-last-ten-messages))
+                                 (push (jabber-xml-get-attribute x 'mid) juick-last-ten-messages)
+                                 (jabber-process-chat
+                                  (jabber-read-account)
+                                  `(message
+                                    ((from . ,juick-bot-jid))
+                                    (body nil ,(concat
+                                                "@"
+                                                (jabber-xml-get-attribute x 'uname)
+                                                ": "
+                                                (mapconcat
+                                                 (lambda (tag)
+                                                   (concat "*" (car (jabber-xml-node-children tag))))
+                                                 (jabber-xml-get-children x 'tag)
+                                                 " ")
+                                                "\n"
+                                                (car (jabber-xml-node-children
+                                                      (car (jabber-xml-get-children x 'body))))
+                                                "\n#" (jabber-xml-get-attribute x 'mid)
+                                                " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"))))))))))
+                  nil
+                  '(lambda (jc xml-data closure-data)
+                     (message "error juick#messages"))
+                  nil))
 
 (defun juick-last-reply ()
   "View last message in own buffer"
