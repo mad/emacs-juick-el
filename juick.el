@@ -96,7 +96,7 @@
 (defvar juick-tag-subscribed '()
   "List subscribed tags")
 
-(defvar juick-last-ten-messages '())
+(defvar juick-api-aftermid nil)
 
 (defvar juick-timer-interval 120)
 (defvar juick-timer nil)
@@ -227,40 +227,40 @@ Use FORCE to markup any buffer"
           (setq jabber-buffer-connection new-jc)
         (setq jabber-buffer-connection (jabber-read-account)))))
   (jabber-send-iq jabber-buffer-connection juick-bot-jid "get"
-                  `(query ((xmlns ."http://juick.com/query#messages")))
+                  `(query ((xmlns . "http://juick.com/query#messages")
+                           ,(if juick-api-aftermid `(aftermid . ,juick-api-aftermid))))
                   '(lambda (jc xml-data closure-data)
                      (let ((juick-query (jabber-xml-get-children
                                          (car (jabber-xml-get-children xml-data 'query))
                                          'juick)))
                        (dolist (x juick-query)
+                         (if (> (string-to-number (jabber-xml-get-attribute x 'mid))
+                                (string-to-number (or juick-api-aftermid "0")))
+                             (setq juick-api-aftermid (jabber-xml-get-attribute x 'mid)))
                          (dolist (tag (jabber-xml-get-children x 'tag))
-                           (if (assoc-string (car (jabber-xml-node-children tag))
-                                             juick-tag-subscribed)
-                               ;; make fake incomning message
-                               (when (not (assoc-string (jabber-xml-get-attribute x 'mid)
-                                                        juick-last-ten-messages))
-                                 (push (jabber-xml-get-attribute x 'mid) juick-last-ten-messages)
-                                 (jabber-process-chat
-                                  (jabber-read-account)
-                                  `(message
-                                    ((from . ,juick-bot-jid))
-                                    (body nil ,(concat
-                                                "@"
-                                                (jabber-xml-get-attribute x 'uname)
-                                                ": "
-                                                (mapconcat
-                                                 (lambda (tag)
-                                                   (concat "*" (car (jabber-xml-node-children tag))))
-                                                 (jabber-xml-get-children x 'tag)
-                                                 " ")
-                                                "\n"
-                                                (car (jabber-xml-node-children
-                                                      (car (jabber-xml-get-children x 'body))))
-                                                "\n#" (jabber-xml-get-attribute x 'mid)
-                                                " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"))))))))))
+                           (when (assoc-string (car (jabber-xml-node-children tag))
+                                               juick-tag-subscribed)
+                             ;; make fake incomning message
+                             (jabber-process-chat
+                              (jabber-read-account)
+                              `(message
+                                ((from . ,juick-bot-jid))
+                                (body nil ,(concat
+                                            "@"
+                                            (jabber-xml-get-attribute x 'uname)
+                                            ": "
+                                            (mapconcat
+                                             (lambda (tag)
+                                               (concat "*" (car (jabber-xml-node-children tag))))
+                                             (jabber-xml-get-children x 'tag)
+                                             " ")
+                                            "\n"
+                                            (car (jabber-xml-node-children
+                                                  (car (jabber-xml-get-children x 'body))))
+                                            "\n#" (jabber-xml-get-attribute x 'mid)
+                                            " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)")))))))))
                   nil
-                  '(lambda (jc xml-data closure-data)
-                     (message "error juick#messages"))
+                  nil ;; this error code='404' (last message not found)
                   nil))
 
 (defun juick-last-reply ()
