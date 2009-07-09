@@ -256,31 +256,31 @@ Use FORCE to markup any buffer"
                            (when (assoc-string (car (jabber-xml-node-children tag))
                                                juick-auto-subscribe-list)
                              (juick-send-message juick-bot-jid
-                                                 (concat "S #" (jabber-xml-get-attribute x 'mid)))))
-                         (when (and first-message (assoc-string
-                                                   (car (jabber-xml-node-children tag))
-                                                   juick-tag-subscribed))
-                           ;; make fake incomning message
-                           (setq first-message nil)
-                           (jabber-process-chat
-                            (jabber-read-account)
-                            `(message
-                              ((from . ,juick-bot-jid))
-                              (body nil ,(concat
-                                          "@"
-                                          (jabber-xml-get-attribute x 'uname)
-                                          ": "
-                                          (mapconcat
-                                           (lambda (tag)
-                                             (concat "*" (car (jabber-xml-node-children tag))))
-                                           (jabber-xml-get-children x 'tag)
-                                           " ")
-                                          "\n"
-                                          (car (jabber-xml-node-children
-                                                (car (jabber-xml-get-children x 'body))))
-                                          "\n#" (jabber-xml-get-attribute x 'mid)
-                                          " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
-                                          " (S)"))))))))
+                                                 (concat "S #" (jabber-xml-get-attribute x 'mid))))
+                           (when (and first-message (assoc-string
+                                                     (car (jabber-xml-node-children tag))
+                                                     juick-tag-subscribed))
+                             ;; make fake incomning message
+                             (setq first-message nil)
+                             (jabber-process-chat
+                              (jabber-read-account)
+                              `(message
+                                ((from . ,juick-bot-jid))
+                                (body nil ,(concat
+                                            "@"
+                                            (jabber-xml-get-attribute x 'uname)
+                                            ": "
+                                            (mapconcat
+                                             (lambda (tag)
+                                               (concat "*" (car (jabber-xml-node-children tag))))
+                                             (jabber-xml-get-children x 'tag)
+                                             " ")
+                                            "\n"
+                                            (car (jabber-xml-node-children
+                                                  (car (jabber-xml-get-children x 'body))))
+                                            "\n#" (jabber-xml-get-attribute x 'mid)
+                                            " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
+                                            " (S)")))))))))
                   nil
                   nil ;; this error code='404' (last message not found)
                   nil))
