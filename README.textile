@@ -1,0 +1,113 @@
+h1. Для чего?
+
+Этот плагин добавляет следующие возможности:
+
+# цветные id/username/tag
+# кликабельные id/username/tag
+## Если нажать enter на id/username, то оно будет вставлено в буфер ввода
+## Если нажать enter на теге, то будет выведено последние 10 сообщений с этим тегом
+## Если нажать s/u на id/username, то вы будете подписаны/отписаны на это сообщение/пользователя
+# Просмотр списка последних на печатаных сообщений;
+# Геолокация (через PEP и message);
+# Tune (через PEP и message);
+# Загрузка картинок через IBB (IBB реализован в одну сторону, т.е. позволяет
+только отправлять файлы, но не принимать);
+# Отображение аватарок.
+# Исправление неправильного ввода команд juick бота (РУДЗ -> HELP, № -> #, ...)
+# Подписка на теги (через juick api)
+# Автоматическая подписка на сообщения с определенным тегом/именем пользователя
+
+"screenshot":http://img14.imageshack.us/img14/2484/juickwithavatar.jpg
+
+<i>дополнения, улучшения, исправления приветствуются</i>
+
+h1. Как пользоваться?
+
+h3. Навигация
+
+Для перемещения по сообщениям можно использовать <code>M-e</code>, <code>M-a</code>.
+Для перемещение по тегма/именам пользователей/id сообщений можно использовать <code>TAB</code> и <code>S-TAB</code>.<br> Для просмотра списка последних сообщений нажмите <code>C-cjl</code>.
+
+h3. Геолокация
+
+Указать геолокацию можно одним из способов:
+
+# Через PEP <br>
+Что бы отправить PEP сообщение с геолокацией нажмите <code>C-cjp</code> (или
+наберите <code>jabber-pep-location-send</code>) <br>
+далее следует ввести название местности (например "Санкт Петербург"), после
+чего будет произведена попытка узнать координаты этой местности через google
+maps, и отправлена серверу. <br>
+# Через сообщение <br>
+Если jabber сервер не поддерживает PEP, то сообщить о геолокации можно прямо в
+сообщение. После того как вы набрали сообщение, нажмите <code>C-cjg</code>
+(или <code>jabber-pep-location-send</code>), геолокация указывается так же как
+и в предыдущем случае.
+
+h3. Tune
+
+Если вы пользуетесь emms, то для отправки tune сообщений можно использовать следующий код:
+<pre>
+<code>(add-hook 'emms-player-started-hook
+          '(lambda ()
+             (let* ((emms-current-track (emms-playlist-current-selected-track)))
+               (run-with-timer 10 nil 'jabber-pep-tune-send
+                               (emms-track-get emms-current-track 'info-artist)
+                               (number-to-string (or (emms-track-get emms-current-track 'info-playing-time) 0))
+                               "0" ;;; use rating ?
+                               (emms-track-get emms-current-track 'info-album)
+                               (emms-track-get emms-current-track 'info-title)
+                               (emms-track-get emms-current-track 'info-tracknumber)
+                               ""))))</code>
+</pre>
+
+Если какой либо другой плеер то, необходимо получить данные о исполнителе (через dbus/etc) и выполнить команду (и кончено же завернуть это в скрипт)
+
+<pre>
+<code>emacsclient --eval "(jabber-pep-tune-send \"artist\" \"length\" \"rating\" \"source\" \"title\" \"track\" \"uri\")"</code>
+</pre>
+
+h3. Отправка картинок
+
+Для отправки картинок используется стандартная функция jabber-el -  <code>jabber-ft-send</code>
+
+h3. Аватарки
+
+Для активации отображения аватарок, нужно выполнить следующий код:
+<pre><code>(setq juick-icon-mode t)</code></pre>
+
+Так же доступно отображение аватарок размером 96x96 и 32x32, настраивается
+черезе:
+<pre><code>(setq juick-icon-hight t)</code></pre>
+в значение t используются аватарки 96х96 иначе 32х32
+
+h3. Подписка на теги
+
+ля того что бы подписаться на какой ниубудь тег, нужно его добавить в juick-tag-subscribed, например вот так:
+<code>(setq juick-tag-subscribed '("linux" "juick"))</code> и активировать автообновление <br>
+<code>(juick-auto-update t)</code>.
+
+Для автоматической подписки на сообщения с определенными тегами или именами пользователей, используется переменная
+<code>juick-auto-subscribe-list</code>, например вот так <code>(setq juick-auto-subscribe-list '("linux" "juick" "ugnich"))</code>
+
+h1. Как установить?
+
+Загрузите последнюю версию:
+<pre><code>git clone git://github.com/mad/emacs-juick-el.git</code></pre>
+
+И вставьте в ваш файл инициализации следующие строчки:
+
+<pre>
+<code>(add-to-list 'load-path "path/to/juick-el/")
+(require 'jabber-ibb)
+(require 'juick)</code>
+</pre>
+
+h1. Дополнительно
+
+h3. Баги
+
+При отправки большой картинки возникает "зависание" емакса, связано с тем что
+IBB протокол реализован без использования fsm (планирую вскоре исправить).
+
+Просьба о багах/фичах/etc писать сюда "#104079":http://juick.com/mad/104079 или на мыло.
