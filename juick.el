@@ -102,6 +102,8 @@
 (defvar juick-auto-subscribe-list nil
   "This list contained tag or username for auto subscribe")
 
+(defvar juick-bookmarks '())
+
 (defvar juick-api-aftermid nil)
 
 (defvar juick-timer-interval 120)
@@ -139,9 +141,10 @@ Where FROM is jid sender, BUFFER is buffer with message TEXT
 Use FORCE to markup any buffer"
   (if (or force (string-match juick-bot-jid from))
       (save-excursion
-        (jabber-truncate-top)
-        (setq juick-point-last-message
-              (re-search-backward (concat juick-bot-jid ">") nil t))
+        (when (null force)
+          (jabber-truncate-top)
+          (setq juick-point-last-message
+                (re-search-backward (concat juick-bot-jid ">") nil t)))
         (set-buffer buffer)
         (juick-markup-user-name)
         (juick-markup-id)
@@ -285,6 +288,29 @@ Use FORCE to markup any buffer"
                   nil ;; this error code='404' (last message not found)
                   nil))
 
+(defun juick-bookmark-list ()
+  (interactive)
+  (let ((tmp-pos juick-point-last-message))
+    (setq juick-point-last-message nil)
+    (split-window-vertically -10)
+    (windmove-down)
+    (switch-to-buffer "*juick-last-reply*")
+    (toggle-read-only -1)
+    (delete-region (point-min) (point-max))
+    (dolist (x juick-bookmarks)
+      (insert (concat (car x) " " (cdr x) "\n")))
+    (goto-char (point-min))
+    (toggle-read-only)
+    (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
+    (setq juick-point-last-message tmp-pos)
+    (juick-last-reply-mode)))
+
+(defun juick-bookmark-add (id desc)
+  (interactive)
+  (when (not desc)
+    (setq desc (read-string (concat "Type description for " id ": "))))
+  (push `(,id . ,desc) juick-bookmarks))
+
 (defun juick-last-reply ()
   "View last message in own buffer"
   (interactive)
@@ -308,7 +334,7 @@ Use FORCE to markup any buffer"
       (setq list (cdr list))))
   (goto-char (point-min))
   (toggle-read-only)
-  (jabber-message-juick nil (current-buffer) nil nil t)
+  (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
   (juick-last-reply-mode))
 
 (define-derived-mode juick-last-reply-mode text-mode
@@ -317,6 +343,13 @@ Use FORCE to markup any buffer"
 
 (define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
 (define-key jabber-chat-mode-map "\C-cjl" 'juick-last-reply)
+(define-key jabber-chat-mode-map "\C-cjb" 'juick-bookmark-list)
+(define-key jabber-chat-mode-map "b"
+  '(lambda ()
+     (interactive)
+     (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
+         (juick-bookmark-add (match-string 0) nil)
+       (self-insert-command 1))))
 (define-key jabber-chat-mode-map "s"
   '(lambda ()
      (interactive)
