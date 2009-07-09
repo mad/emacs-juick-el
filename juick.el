@@ -99,6 +99,9 @@
 (defvar juick-tag-subscribed '()
   "List subscribed tags")
 
+(defvar juick-auto-subscribe-list nil
+  "This list contained tag or username for auto subscribe")
+
 (defvar juick-api-aftermid nil)
 
 (defvar juick-timer-interval 120)
@@ -243,9 +246,20 @@ Use FORCE to markup any buffer"
                                 (string-to-number (or juick-api-aftermid "0")))
                              (setq juick-api-aftermid (jabber-xml-get-attribute x 'mid)))
                          (setq first-message t)
+                         ;; Message with uname auto subscribe
+                         (when (assoc-string (jabber-xml-get-attribute x 'uname)
+                                             juick-auto-subscribe-list)
+                           (juick-send-message juick-bot-jid
+                                               (concat "S #" (jabber-xml-get-attribute x 'mid))))
                          (dolist (tag (jabber-xml-get-children x 'tag))
-                           (when (and first-message (assoc-string (car (jabber-xml-node-children tag))
-                                                                  juick-tag-subscribed))
+                           (when (and first-message (assoc-string
+                                                     (car (jabber-xml-node-children tag))
+                                                     juick-tag-subscribed))
+                             ;; Message with tag auto subscribe
+                             (when  (assoc-string (car jabber-xml-node-children tag)
+                                                  juick-auto-subscribe-list)
+                               (juick-send-message juick-bot-jid
+                                                   (concat "S #" (jabber-xml-get-attribute x 'mid))))
                              ;; make fake incomning message
                              (setq first-message nil)
                              (jabber-process-chat
@@ -265,7 +279,8 @@ Use FORCE to markup any buffer"
                                             (car (jabber-xml-node-children
                                                   (car (jabber-xml-get-children x 'body))))
                                             "\n#" (jabber-xml-get-attribute x 'mid)
-                                            " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)")))))))))
+                                            " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
+                                            " (S)")))))))))
                   nil
                   nil ;; this error code='404' (last message not found)
                   nil))
@@ -337,11 +352,12 @@ Use FORCE to markup any buffer"
   "Send TEXT to TO imediately"
   (interactive)
   (save-excursion
-    (jabber-chat-with (jabber-read-account) to)
-    (goto-char (point-max))
-    (delete-region jabber-point-insert (point-max))
-    (insert text)
-    (jabber-chat-buffer-send)))
+    (let ((buffer (jabber-chat-create-buffer (jabber-read-account) to)))
+      (set-buffer buffer)
+      (goto-char (point-max))
+      (delete-region jabber-point-insert (point-max))
+      (insert text)
+      (jabber-chat-buffer-send))))
 
 (defun juick-markup-user-name ()
   "Markup user-name matched by regex `juick-regex-user-name'"
