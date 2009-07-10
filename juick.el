@@ -26,15 +26,23 @@
 
 ;; 1. Put juick.el to you load-path
 ;; 2. put this to your init file:
-;;  (require 'juick)
-;; 3. Turn on jabber history in order to `juick-last-reply' working:
-;;
-;;  (setq jabber-history-enabled t)
-;;  (setq jabber-use-global-history nil)
+
+;; (require 'juick)
+
+;; and any useful settings
+
+;; (setq juick-icon-mode t)
+;; (setq juick-tag-subscribed '("linux" "juick" "jabber" "emacs" "vim"))
+;; (setq juick-auto-subscribe-list '("linux" "emacs" "vim" "juick" "ugnich"))
+;; (juick-auto-update t)
 
 ;;; Default bind:
 
-;; C-cjl - `juick-last-reply'
+;; u - unsubscribe message/user
+;; s - subscribe message/user
+;; d - delete message
+;; b - bookmark message/user
+;; C-cjb - `juick-bookmark-list'
 ;; TAB - `juick-next-button'
 
 ;;; Code:
@@ -124,14 +132,14 @@
 (defvar juick-italic-regex "[\n ]\\(/[^\n]+/\\)[\n ]")
 (defvar juick-underline-regex "[\n ]\\(\_[^\n]+\_\\)[\n ]")
 
-(defvar juick-last-reply-mode-map
+(defvar juick-bookmark-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map text-mode-map)
     (define-key map "q" 'juick-find-buffer)
     (define-key map (kbd "TAB") 'juick-next-button)
     (define-key map (kbd "<backtab>") 'backward-button)
     map)
-  "Keymap for `juick-last-reply-mode'.")
+  "Keymap for `juick-bookmark-mode'.")
 
 (defun juick-markup-chat (from buffer text proposed-alert &optional force)
   "Markup  message from `juick-bot-jid'.
@@ -221,72 +229,87 @@ Use FORCE to markup any buffer"
        (setq juick-timer
              (run-at-time "0 sec"
                           juick-timer-interval
-                          #'juick-api-request-stanza))
+                          #'juick-api-last-message))
        (message "auto update activated"))
      ((and (<= arg 0) juick-timer)
       (cancel-timer juick-timer)
       (setq juick-timer nil)
       (message "auto update deactivated")))))
 
-(defun juick-api-request-stanza ()
+(defun juick-api-request (juick-stanza type callback)
   "Make and process juick stanza
 \(http://juick.com/help/api/xmpp/)"
+  ;; XXX: get current jc or use specified jc?
   (unless (memq jabber-buffer-connection jabber-connections)
     (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
       (if new-jc
           (setq jabber-buffer-connection new-jc)
         (setq jabber-buffer-connection (jabber-read-account)))))
-  (jabber-send-iq jabber-buffer-connection juick-bot-jid "get"
-                  `(query ((xmlns . "http://juick.com/query#messages")
-                           ,(if juick-api-aftermid `(aftermid . ,juick-api-aftermid))))
-                  '(lambda (jc xml-data closure-data)
-                     (let ((juick-query (jabber-xml-get-children
-                                         (car (jabber-xml-get-children xml-data 'query))
-                                         'juick))
-                           (first-message t)) ;; XXX: i dont know how break out of dolist
-                       (dolist (x juick-query)
-                         (if (> (string-to-number (jabber-xml-get-attribute x 'mid))
-                                (string-to-number (or juick-api-aftermid "0")))
-                             (setq juick-api-aftermid (jabber-xml-get-attribute x 'mid)))
-                         (setq first-message t)
-                         ;; Message with uname auto subscribe
-                         (when (assoc-string (jabber-xml-get-attribute x 'uname)
-                                             juick-auto-subscribe-list)
-                           (juick-send-message juick-bot-jid
-                                               (concat "S #" (jabber-xml-get-attribute x 'mid))))
-                         (dolist (tag (jabber-xml-get-children x 'tag))
-                           ;; Message with tag auto subscribe
-                           (when (assoc-string (car (jabber-xml-node-children tag))
-                                               juick-auto-subscribe-list)
-                             (juick-send-message juick-bot-jid
-                                                 (concat "S #" (jabber-xml-get-attribute x 'mid))))
-                           (when (and first-message (assoc-string
-                                                     (car (jabber-xml-node-children tag))
-                                                     juick-tag-subscribed))
-                             ;; make fake incomning message
-                             (setq first-message nil)
-                             (jabber-process-chat
-                              (jabber-read-account)
-                              `(message
-                                ((from . ,juick-bot-jid))
-                                (body nil ,(concat
-                                            "@"
-                                            (jabber-xml-get-attribute x 'uname)
-                                            ": "
-                                            (mapconcat
-                                             (lambda (tag)
-                                               (concat "*" (car (jabber-xml-node-children tag))))
-                                             (jabber-xml-get-children x 'tag)
-                                             " ")
-                                            "\n"
-                                            (car (jabber-xml-node-children
-                                                  (car (jabber-xml-get-children x 'body))))
-                                            "\n#" (jabber-xml-get-attribute x 'mid)
-                                            " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
-                                            " (S)")))))))))
-                  nil
-                  nil ;; this error code='404' (last message not found)
-                  nil))
+  (jabber-send-iq jabber-buffer-connection juick-bot-jid type juick-stanza
+                  callback nil
+                  ;; this error code='404' (last message not found)
+                  nil nil))
+
+(defun juick-api-unsubscribe (id)
+  (juick-api-request `(query ((xmlns . "http://juick.com/subscriptions#messages")
+                              (action . "unsubscribe")
+                              (mid . ,id))) "set" nil)
+  (message "Unsubscribing to %s" id))
+
+(defun juick-api-subscribe (id)
+  (juick-api-request `(query ((xmlns . "http://juick.com/subscriptions#messages")
+                              (action . "subscribe")
+                              (mid . ,id))) "set" nil)
+  (message "Subscribing to %s" id))
+
+(defun juick-api-last-message ()
+  (juick-api-request `(query ((xmlns . "http://juick.com/query#messages")
+                              ,(if juick-api-aftermid `(aftermid . ,juick-api-aftermid))))
+                     "get" 'juick-api-last-message-cb))
+
+(defun juick-api-last-message-cb (jc xml-data closure-data)
+  (let ((juick-query (jabber-xml-get-children
+                      (car (jabber-xml-get-children xml-data 'query))
+                      'juick))
+        (first-message t)) ;; XXX: i dont know how break out of dolist
+    (dolist (x juick-query)
+      (if (> (string-to-number (jabber-xml-get-attribute x 'mid))
+             (string-to-number (or juick-api-aftermid "0")))
+          (setq juick-api-aftermid (jabber-xml-get-attribute x 'mid)))
+      (setq first-message t)
+      ;; Message with uname auto subscribe
+      (when (assoc-string (jabber-xml-get-attribute x 'uname)
+                          juick-auto-subscribe-list)
+        (juick-api-subscribe (jabber-xml-get-attribute x 'mid)))
+      (dolist (tag (jabber-xml-get-children x 'tag))
+        ;; Message with tag auto subscribe
+        (when (assoc-string (car (jabber-xml-node-children tag))
+                            juick-auto-subscribe-list)
+          (juick-api-subscribe (jabber-xml-get-attribute x 'mid)))
+        (when (and first-message (assoc-string
+                                  (car (jabber-xml-node-children tag))
+                                  juick-tag-subscribed))
+          ;; make fake incomning message
+          (setq first-message nil)
+          (jabber-process-chat
+           (jabber-read-account)
+           `(message
+             ((from . ,juick-bot-jid))
+             (body nil ,(concat
+                         "@"
+                         (jabber-xml-get-attribute x 'uname)
+                         ": "
+                         (mapconcat
+                          (lambda (tag)
+                            (concat "*" (car (jabber-xml-node-children tag))))
+                          (jabber-xml-get-children x 'tag)
+                          " ")
+                         "\n"
+                         (car (jabber-xml-node-children
+                               (car (jabber-xml-get-children x 'body))))
+                         "\n#" (jabber-xml-get-attribute x 'mid)
+                         " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
+                         " (S)")))))))))
 
 (defun juick-bookmark-list ()
   (interactive)
@@ -294,7 +317,7 @@ Use FORCE to markup any buffer"
     (setq juick-point-last-message nil)
     (split-window-vertically -10)
     (windmove-down)
-    (switch-to-buffer "*juick-last-reply*")
+    (switch-to-buffer "*juick-bookmark*")
     (toggle-read-only -1)
     (delete-region (point-min) (point-max))
     (dolist (x juick-bookmarks)
@@ -303,7 +326,7 @@ Use FORCE to markup any buffer"
     (toggle-read-only)
     (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
     (setq juick-point-last-message tmp-pos)
-    (juick-last-reply-mode)))
+    (juick-bookmark-mode)))
 
 (defun juick-bookmark-add (id desc)
   (interactive)
@@ -311,38 +334,11 @@ Use FORCE to markup any buffer"
     (setq desc (read-string (concat "Type description for " id ": "))))
   (push `(,id . ,desc) juick-bookmarks))
 
-(defun juick-last-reply ()
-  "View last message in own buffer"
-  (interactive)
-  (split-window-vertically -10)
-  (windmove-down)
-  (switch-to-buffer "*juick-last-reply*")
-  (toggle-read-only -1)
-  (delete-region (point-min) (point-max))
-  ;; XXX: retrive last 200 msg, some of them '^#NNNN msg'
-  ;; make own history for juick and write only '^#NNNN msg'
-  ;; or retrive ALL history
-  (let ((list (nreverse (jabber-history-query nil nil 200 "out" juick-bot-jid
-                                              (concat jabber-history-dir
-                                                      (concat "/" juick-bot-jid))))))
-    (while list
-      (let ((msg (aref (car list) 4)))
-        (when (string-match "\\(^#[0-9]+\\(/[0-9]+\\)? .\\)" msg 0)
-          (if (> (length msg) 40)
-              (insert (concat (substring msg 0 40) "...\n"))
-            (insert (concat msg "\n")))))
-      (setq list (cdr list))))
-  (goto-char (point-min))
-  (toggle-read-only)
-  (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
-  (juick-last-reply-mode))
-
-(define-derived-mode juick-last-reply-mode text-mode
-  "juick last reply mode"
-  "Major mode for getting last reply")
+(define-derived-mode juick-bookmark-mode text-mode
+  "juick bookmark mode"
+  "Major mode for getting bookmark")
 
 (define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
-(define-key jabber-chat-mode-map "\C-cjl" 'juick-last-reply)
 (define-key jabber-chat-mode-map "\C-cjb" 'juick-bookmark-list)
 (define-key jabber-chat-mode-map "b"
   '(lambda ()
@@ -353,16 +349,20 @@ Use FORCE to markup any buffer"
 (define-key jabber-chat-mode-map "s"
   '(lambda ()
      (interactive)
-     (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
-         (juick-send-message juick-bot-jid
-                             (concat "S " (match-string-no-properties 0)))
+     (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@[0-9A-Za-z@\.\-]+"))
+         (if (match-string 1)
+             (juick-api-subscribe (match-string-no-properties 1))
+           (juick-send-message juick-bot-jid
+                               (concat "S " (match-string-no-properties 0))))
        (self-insert-command 1))))
 (define-key jabber-chat-mode-map "u"
   '(lambda ()
      (interactive)
-     (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
-         (juick-send-message juick-bot-jid
-                             (concat "U " (match-string-no-properties 0)))
+     (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@[0-9A-Za-z@\.\-]+"))
+         (if (match-string 1)
+             (juick-api-unsubscribe (match-string-no-properties 1))
+           (juick-send-message juick-bot-jid
+                               (concat "U " (match-string-no-properties 0))))
        (self-insert-command 1))))
 (define-key jabber-chat-mode-map "d"
   '(lambda ()
