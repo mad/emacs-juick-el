@@ -42,6 +42,7 @@
 ;; s - subscribe message/user
 ;; d - delete message
 ;; b - bookmark message/user
+;; p - make private message with user
 ;; C-cjb - `juick-bookmark-list'
 ;; TAB - `juick-next-button'
 
@@ -251,23 +252,30 @@ Use FORCE to markup any buffer"
                   nil nil))
 
 (defun juick-api-unsubscribe (id)
-  (juick-api-request `(query ((xmlns . "http://juick.com/subscriptions#messages")
+  "Unsubscribe to message with ID."
+  (juick-api-request `(subscriptions ((xmlns . "http://juick.com/subscriptions#messages")
                               (action . "unsubscribe")
                               (mid . ,id))) "set" nil)
   (message "Unsubscribing to %s" id))
 
 (defun juick-api-subscribe (id)
-  (juick-api-request `(query ((xmlns . "http://juick.com/subscriptions#messages")
+  "Subscribe to message with ID.
+
+Recieving full new message."
+  (juick-api-request `(subscriptions ((xmlns . "http://juick.com/subscriptions#messages")
                               (action . "subscribe")
                               (mid . ,id))) "set" nil)
   (message "Subscribing to %s" id))
 
 (defun juick-api-last-message ()
+  "Recieving last ten message after `juick-api-aftermid'"
   (juick-api-request `(query ((xmlns . "http://juick.com/query#messages")
                               ,(if juick-api-aftermid `(aftermid . ,juick-api-aftermid))))
                      "get" 'juick-api-last-message-cb))
 
 (defun juick-api-last-message-cb (jc xml-data closure-data)
+  "Checking `juick-auto-subscribe-list' and `juick-tag-subscribed'
+in a match, if match send fake message himself"
   (let ((juick-query (jabber-xml-get-children
                       (car (jabber-xml-get-children xml-data 'query))
                       'juick))
