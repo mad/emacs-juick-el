@@ -180,7 +180,9 @@ Use FORCE to markup any buffer"
                (image :type png
                       :file ,fake-png))
          icon-string)
-        (re-search-backward "@" nil t)
+        (goto-char (match-beginning 0))
+        (re-search-forward "@" nil t)
+        (goto-char (- (point) 1))
         (insert (concat icon-string " "))
         (re-search-forward ":" nil t)))
     (clear-image-cache)))
