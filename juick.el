@@ -96,9 +96,6 @@
 
 (defvar juick-point-last-message nil)
 
-(defvar juick-avatar-internal-stack nil
-  "Internal var")
-
 (defvar juick-icon-mode nil
   "This mode display avatar in buffer chat")
 
@@ -153,91 +150,32 @@ Use FORCE to markup any buffer"
         (when (null force)
           (jabber-truncate-top)
           (setq juick-point-last-message
-                (re-search-backward (concat juick-bot-jid ">") nil t)))
+                (search-backward (concat juick-bot-jid ">") nil t)))
         (set-buffer buffer)
         (juick-markup-user-name)
         (juick-markup-id)
         (juick-markup-tag)
         (juick-markup-bold)
         (juick-markup-italic)
-        (juick-markup-underline)
-        (if (and juick-icon-mode window-system)
-            (juick-avatar-insert)))))
+        (juick-markup-underline))))
 
 (add-hook 'jabber-alert-message-hooks 'juick-markup-chat)
 
-(defun juick-avatar-insert ()
-  (goto-char (or juick-point-last-message (point-min)))
-  (setq juick-avatar-internal-stack nil)
-  (let ((inhibit-read-only t))
-    (while (re-search-forward "\\(by @\\|> @\\|^@\\)\\([0-9A-Za-z@\\.\\-]+\\):" nil t)
-      (let* ((icon-string "\n ")
-             (name (match-string-no-properties 2))
-             (fake-png (concat juick-tmp-dir "/" name ".png")))
-        (juick-avatar-download name)
-        (set-text-properties
-         1 2 `(display
-               (image :type png
-                      :file ,fake-png))
-         icon-string)
-        (goto-char (match-beginning 0))
-        (re-search-forward "@" nil t)
-        (goto-char (- (point) 1))
-        (insert (concat icon-string " "))
-        (re-search-forward ":" nil t)))
-    (clear-image-cache)))
+(defadvice jabber-chat-normal-body (around jabber-chat-normal-body-around-advice
+                                           (xml-data who mode) activate)
+  "Check xml-data, if xmlns exists and equal juick.com
+print it, otherwise `ad-do-it'"
+  (let ((juick-body (car (jabber-xml-get-children xml-data 'juick))))
+    (if juick-body
+        ;; Handle juick message
+        (progn
+          (setq ad-return-value t)
+          (when (eql mode :insert)
+            (setq juick-point-last-message (point))
+            (insert (juick-api-make-message juick-body t))))
+      ad-do-it)))
 
-(defun juick-avatar-download (name)
-  "Download avatar from juick.com"
-  (if (or (assoc-string name juick-avatar-internal-stack)
-          (file-exists-p (concat juick-tmp-dir "/" name ".png")))
-      nil
-    (let ((avatar-url (concat "http://juick.com/" name "/"))
-          (url-request-method "GET"))
-      (push name juick-avatar-internal-stack)
-      (url-retrieve avatar-url
-                    '(lambda (status name)
-                       (let ((result-buffer (current-buffer)))
-                         (goto-char (point-min))
-                         (when (re-search-forward "http://i.juick.com/a/[0-9]+\.png" nil t)
-                           (juick-avatar-download-and-save (match-string 0) name)
-                           (kill-buffer result-buffer))))
-                    (list name)))))
-
-(defun juick-avatar-download-and-save (link name)
-  "Extract image frim LINK and save it with NAME in
-`juick-tmp-dir'"
-  (let* ((filename (substring link (string-match "[0-9]+" link)))
-         (avatar-url (concat "http://i.juick.com/" (if juick-icon-hight "a" "as") "/" filename))
-         (url-request-method "GET"))
-    (url-retrieve avatar-url
-                  '(lambda (status name)
-                     (let ((result-buffer (current-buffer))
-                           (buffer-file-coding-system 'binary)
-                           (file-coding-system 'binary)
-                           (coding-system-for-write 'binary))
-                       (delete-region (point-min) (re-search-forward "\n\n" nil t))
-                       (write-region (point-min) (point-max) (concat juick-tmp-dir "/" name ".png"))
-                       (kill-buffer (current-buffer))
-                       (kill-buffer result-buffer)))
-                  (list name))))
-
-(defun juick-auto-update (&optional arg)
-  (interactive "P")
-  (let ((arg (if (numberp arg)
-                 (prefix-numeric-value arg)
-               1)))
-    (cond
-     ((and (> arg 0) (null juick-timer))
-       (setq juick-timer
-             (run-at-time "0 sec"
-                          juick-timer-interval
-                          #'juick-api-last-message))
-       (message "auto update activated"))
-     ((and (<= arg 0) juick-timer)
-      (cancel-timer juick-timer)
-      (setq juick-timer nil)
-      (message "auto update deactivated")))))
+;; API funcs
 
 (defun juick-api-request (juick-stanza type callback)
   "Make and process juick stanza
@@ -253,31 +191,78 @@ Use FORCE to markup any buffer"
                   ;; this error code='404' (last message not found)
                   nil nil))
 
-(defun juick-api-unsubscribe (id)
-  "Unsubscribe to message with ID."
-  (juick-api-request `(subscriptions ((xmlns . "http://juick.com/subscriptions#messages")
-                              (action . "unsubscribe")
-                              (mid . ,id))) "set" nil)
-  (message "Unsubscribing to %s" id))
+(defun juick-api-message (id)
+  "Retrieve only first message (without replies)"
+  (juick-api-request `(query ((xmlns . "http://juick.com/query#messages")
+                              (mid . ,id)))
+                     "get" 'juick-api-message-cb))
 
-(defun juick-api-subscribe (id)
-  "Subscribe to message with ID.
+(defun juick-api-message-cb (jc xml-data closure-data)
+  (let* ((juick-query
+          (jabber-xml-get-children
+           (car (jabber-xml-get-children xml-data 'query))
+           'juick))
+         (fake-body
+          (mapconcat
+           (lambda (x)
+             (juick-api-make-message x t))
+           juick-query "\n\n")))
+    (jabber-process-chat jc `(message
+                              ((from . ,juick-bot-jid))
+                              (body nil ,fake-body)))))
 
-Recieving full new message."
-  (juick-api-request `(subscriptions ((xmlns . "http://juick.com/subscriptions#messages")
-                              (action . "subscribe")
-                              (mid . ,id))) "set" nil)
-  (message "Subscribing to %s" id))
+(defun juick-api-message-and-replies (id)
+  "Retrieve full (with all replies) message with ID"
+  (juick-api-message id) ;; first retrieve main message
+  (juick-api-request `(query ((xmlns . "http://juick.com/query#messages")
+                              (mid . ,id)
+                              (rid . "*")))
+                     "get"
+                     'juick-api-message-and-replies-cb))
+
+(defun juick-api-message-and-replies-cb (jc xml-data closure-data)
+  (let* ((juick-query (jabber-xml-get-children
+                       (car (jabber-xml-get-children xml-data 'query))
+                       'juick))
+         (fake-body
+          (mapconcat
+           (lambda (x)
+             (juick-api-make-message x nil))
+           juick-query "\n\n")))
+    (jabber-process-chat jc `(message
+                              ((from . ,juick-bot-jid))
+                              (body nil ,fake-body)))))
+
+(defun juick-api-last-ten-message ()
+  "Recieving last ten messages"
+  (juick-api-request `(query ((xmlns . "http://juick.com/query#messages")))
+                      "get" 'juick-api-last-ten-message-cb))
+
+(defun juick-api-last-ten-message-cb (jc xml-data closure-data)
+  "Recieving ten messages from juick and sending himself (fake)"
+  (let* ((juick-query (jabber-xml-get-children
+                       (car (jabber-xml-get-children xml-data 'query))
+                       'juick))
+         (fake-body
+          (mapconcat
+           (lambda (x)
+             (juick-api-make-message x t))
+           juick-query "\n\n")))
+    (jabber-process-chat jc `(message
+                              ((from . ,juick-bot-jid))
+                              (body nil ,fake-body)))))
 
 (defun juick-api-last-message ()
-  "Recieving last ten message after `juick-api-aftermid'"
+  "Recieving last messages after `juick-api-aftermid'
+
+Used for autoupdate"
   (juick-api-request `(query ((xmlns . "http://juick.com/query#messages")
                               ,(if juick-api-aftermid `(aftermid . ,juick-api-aftermid))))
                      "get" 'juick-api-last-message-cb))
 
 (defun juick-api-last-message-cb (jc xml-data closure-data)
-  "Checking `juick-auto-subscribe-list' and `juick-tag-subscribed'
-in a match, if match send fake message himself"
+  "Checking `juick-auto-subscribe-list' and `juick-tag-subscribed', if
+match send fake message himself"
   (let ((juick-query (jabber-xml-get-children
                       (car (jabber-xml-get-children xml-data 'query))
                       'juick))
@@ -301,52 +286,100 @@ in a match, if match send fake message himself"
                                   juick-tag-subscribed))
           ;; make fake incomning message
           (setq first-message nil)
-          (jabber-process-chat
-           (jabber-read-account)
-           `(message
-             ((from . ,juick-bot-jid))
-             (body nil ,(concat
-                         "@"
-                         (jabber-xml-get-attribute x 'uname)
-                         ": "
-                         (mapconcat
-                          (lambda (tag)
-                            (concat "*" (car (jabber-xml-node-children tag))))
-                          (jabber-xml-get-children x 'tag)
-                          " ")
-                         "\n"
-                         (car (jabber-xml-node-children
-                               (car (jabber-xml-get-children x 'body))))
-                         "\n#" (jabber-xml-get-attribute x 'mid)
-                         " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
-                         " (S)")))))))))
+          (jabber-process-chat (jabber-read-account)
+                               `(message
+                                 ((from . ,juick-bot-jid))
+                                 (body nil ,(juick-api-make-message x t)))))))))
 
-(defun juick-bookmark-list ()
-  (interactive)
-  (let ((tmp-pos juick-point-last-message))
-    (setq juick-point-last-message nil)
-    (split-window-vertically -10)
-    (windmove-down)
-    (switch-to-buffer "*juick-bookmark*")
-    (toggle-read-only -1)
-    (delete-region (point-min) (point-max))
-    (dolist (x juick-bookmarks)
-      (insert (concat (car x) " " (cdr x) "\n")))
-    (goto-char (point-min))
-    (toggle-read-only)
-    (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
-    (setq juick-point-last-message tmp-pos)
-    (juick-bookmark-mode)))
+(defun juick-api-make-message (body-xml normal-body)
+  "Make formatting message from body
 
-(defun juick-bookmark-add (id desc)
-  (interactive)
-  (when (not desc)
-    (setq desc (read-string (concat "Type description for " id ": "))))
-  (push `(,id . ,desc) juick-bookmarks))
+if NORMAL-BODY t then BODY-XML without reply"
+  (let* ((icon-string "\n  ")
+         (avatar-id (jabber-xml-get-attribute body-xml 'uid))
+         (replies (string-to-number (or (jabber-xml-get-attribute body-xml 'replies) "0")))
+         (rid (jabber-xml-get-attribute body-xml 'rid))
+         (mid (jabber-xml-get-attribute body-xml 'mid))
+         (uname (jabber-xml-get-attribute body-xml 'uname))
+         (body (car (jabber-xml-node-children
+                     (car (jabber-xml-get-children body-xml 'body)))))
+         (fake-png (concat juick-tmp-dir "/" avatar-id ".png")))
+    ;; XXX: check timestamp, because avatar may be changed
+    (when (not (file-exists-p (concat juick-tmp-dir "/" avatar-id ".png")))
+      (write-region "" nil fake-png nil nil nil nil)
+      (juick-avatar-download avatar-id))
+    (set-text-properties
+     1 2 `(display
+           (image :type png
+                  :file ,fake-png))
+     icon-string)
+    ;; XXX: add quoted message (lack of api)
+    (concat (if (and rid normal-body)
+                "Reply by ")
+            (if (not mid) ;; is private message
+                "Private message from ")
+            (if juick-icon-mode
+                icon-string)
+            "@" uname ": "
+            (mapconcat
+             (lambda (tag)
+               (concat "*" (car (jabber-xml-node-children tag))))
+             (jabber-xml-get-children body-xml 'tag)
+             " ")
+            "\n"
+            body
+            "\n"
+            (when mid ;; otherwise private message
+              (concat "#" mid
+                      (if rid
+                          (concat "/" rid)
+                        (cond
+                         ((= 1 replies)
+                          (concat " (" (number-to-string replies) " reply)"))
+                         ((< 1 replies)
+                          (concat " (" (number-to-string replies) " replies)"))))
+                      (when normal-body
+                        (concat " http://juick.com/" mid
+                                (if rid
+                                    (concat "#" rid)))))))))
 
-(define-derived-mode juick-bookmark-mode text-mode
-  "juick bookmark mode"
-  "Major mode for getting bookmark")
+(defun juick-api-unsubscribe (id)
+  "Unsubscribe to message with ID."
+  (juick-api-request `(subscriptions ((xmlns . "http://juick.com/subscriptions#messages")
+                              (action . "unsubscribe")
+                              (mid . ,id))) "set" nil)
+  (message "Unsubscribing to %s" id))
+
+(defun juick-api-subscribe (id)
+  "Subscribe to message with ID.
+
+Recieving full new message."
+  (juick-api-request `(subscriptions ((xmlns . "http://juick.com/subscriptions#messages")
+                              (action . "subscribe")
+                              (mid . ,id))) "set" nil)
+  (message "Subscribing to %s" id))
+
+(defun juick-auto-update (&optional arg)
+  "Check last messages to match with `juick-tag-subscribed'
+`juick-auto-subscribe-list'"
+  (interactive "P")
+  (let ((arg (if (numberp arg)
+                 (prefix-numeric-value arg)
+               1)))
+    (cond
+     ((and (> arg 0) (null juick-timer))
+       (setq juick-timer
+             (run-at-time "0 sec"
+                          juick-timer-interval
+                          #'juick-api-last-message))
+       (message "auto update activated"))
+     ((and (<= arg 0) juick-timer)
+      (cancel-timer juick-timer)
+      (setq juick-timer nil)
+      (message "auto update deactivated")))))
+
+;; Keybindings
+;; XXX: own minor mode ?
 
 (define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
 (define-key jabber-chat-mode-map "\C-cjb" 'juick-bookmark-list)
@@ -391,16 +424,7 @@ in a match, if match send fake message himself"
            (insert (concat "PM " (match-string-no-properties 0) " ")))
        (self-insert-command 1))))
 
-(defun juick-send-message (to text)
-  "Send TEXT to TO imediately"
-  (interactive)
-  (save-excursion
-    (let ((buffer (jabber-chat-create-buffer (jabber-read-account) to)))
-      (set-buffer buffer)
-      (goto-char (point-max))
-      (delete-region jabber-point-insert (point-max))
-      (insert text)
-      (jabber-chat-buffer-send))))
+;; Markup funcs
 
 (defun juick-markup-user-name ()
   "Markup user-name matched by regex `juick-regex-user-name'"
@@ -476,11 +500,94 @@ in a match, if match send fake message himself"
              (- (re-search-forward "[\n ]" nil t) 1))))
     (juick-find-buffer)
     (goto-char (point-max))
-    ;; usually #NNNN supposed #NNNN+
+    ;; usually used #NNNN+ instead #NNNN
     (if (string-match "/" id)
         (insert (concat id " "))
       (insert (concat id "+"))))
   (recenter 10))
+
+;; Other funcs
+
+;; TODO: save bookmark and update reply
+(defun juick-bookmark-list ()
+  (interactive)
+  (let ((tmp-pos juick-point-last-message))
+    (setq juick-point-last-message nil)
+    (split-window-vertically -10)
+    (windmove-down)
+    (switch-to-buffer "*juick-bookmark*")
+    (toggle-read-only -1)
+    (delete-region (point-min) (point-max))
+    (dolist (x juick-bookmarks)
+      (insert (concat (car x) " " (cdr x) "\n")))
+    (goto-char (point-min))
+    (toggle-read-only)
+    (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
+    (setq juick-point-last-message tmp-pos)
+    (juick-bookmark-mode)))
+
+(defun juick-bookmark-add (id desc)
+  (interactive)
+  (when (not desc)
+    (setq desc (read-string (concat "Type description for " id ": "))))
+  (push `(,id . ,desc) juick-bookmarks))
+
+(define-derived-mode juick-bookmark-mode text-mode
+  "juick bookmark mode"
+  "Major mode for getting bookmark")
+
+(defun juick-send-message (to text)
+  "Send TEXT to TO imediately"
+  (interactive)
+  (save-excursion
+    (let ((buffer (jabber-chat-create-buffer (jabber-read-account) to)))
+      (set-buffer buffer)
+      (goto-char (point-max))
+      (delete-region jabber-point-insert (point-max))
+      (insert text)
+      (jabber-chat-buffer-send))))
+
+(defun juick-avatar-download (id)
+  "Download avatar from juick.com"
+  (let ((avatar-url
+         (concat "http://i.juick.com/" (if juick-icon-hight "a" "as") "/" id ".png"))
+        (url-request-method "GET"))
+    (url-retrieve avatar-url
+                  '(lambda (status id)
+                     (let ((result-buffer (current-buffer))
+                           (buffer-file-coding-system 'binary)
+                           (file-coding-system 'binary)
+                           (coding-system-for-write 'binary))
+                       (delete-region (point-min) (re-search-forward "\n\n" nil t))
+                       (write-region (point-min) (point-max) (concat juick-tmp-dir "/" id ".png"))
+                       (kill-buffer (current-buffer))
+                       (kill-buffer result-buffer)))
+                  (list id))))
+
+(defadvice jabber-chat-send (around jabber-chat-send-around-advice
+                                    (jc body) activate)
+  "Check and correct juick command"
+  (if (string-match juick-bot-jid jabber-chatting-with)
+      (let* ((body (cond
+                    ((member-ignore-case  body '("№" "#" "LAST" "ДФЫЕ"))
+                     (juick-api-last-ten-message)
+                     ;; do not send original message
+                     nil)
+                    ((string-match "^#\\([0-9]+\\(/[0-9]+\\)?\\)$" body)
+                     (juick-api-message (match-string 1 body))
+                     nil)
+                    ((string-match "^#\\([0-9]+\\(/[0-9]+\\)?\\)\\+$" body)
+                     (juick-api-message-and-replies (match-string 1 body))
+                     nil)
+                    ((member-ignore-case body '("HELP" "РУДЗ"))
+                     "HELP")
+                    ((member-ignore-case body '("D L" "В Д"))
+                     "D L")
+                    (t
+                     body))))
+        (if body
+            ad-do-it))
+    ad-do-it))
 
 (defun juick-find-tag (button)
   "Retrive 10 message this tag"
@@ -508,24 +615,6 @@ in a match, if match send fake message himself"
       (if juick-window
           (select-window juick-window)
         (jabber-chat-with (jabber-read-account) juick-bot-jid)))))
-
-(defadvice jabber-chat-send (around jabber-chat-send-around-advice
-                                    (jc body) activate)
-  "Check and correct juick command"
-  (if (string-match juick-bot-jid jabber-chatting-with)
-      (let* ((body (cond
-                    ((string= "№" body)
-                     "#")
-                    ((string= "РУДЗ" body)
-                     "HELP")
-                    ((string= "help" body)
-                     "HELP")
-                    ((string= "d l" body)
-                     "D L")
-                    (t
-                     body))))
-        ad-do-it)
-    ad-do-it))
 
 (defun juick-next-button ()
   "move point to next button"
