@@ -150,11 +150,11 @@ Where FROM is jid sender, BUFFER is buffer with message TEXT
 Use FORCE to markup any buffer"
   (if (or force (string-match juick-bot-jid from))
       (save-excursion
+        (set-buffer buffer)
         (when (null force)
           (jabber-truncate-top)
           (setq juick-point-last-message
                 (re-search-backward (concat juick-bot-jid ">") nil t)))
-        (set-buffer buffer)
         (juick-markup-user-name)
         (juick-markup-id)
         (juick-markup-tag)
@@ -174,13 +174,13 @@ Use FORCE to markup any buffer"
       (let* ((icon-string "\n ")
              (name (match-string-no-properties 2))
              (fake-png (concat juick-tmp-dir "/" name ".png")))
+        (goto-char (match-beginning 0))
         (juick-avatar-download name)
         (set-text-properties
          1 2 `(display
                (image :type png
                       :file ,fake-png))
          icon-string)
-        (goto-char (match-beginning 0))
         (re-search-forward "@" nil t)
         (goto-char (- (point) 1))
         (insert (concat icon-string " "))
