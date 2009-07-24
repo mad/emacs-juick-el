@@ -31,7 +31,6 @@
 
 ;; and any useful settings
 
-;; (setq juick-icon-mode t)
 ;; (setq juick-tag-subscribed '("linux" "juick" "jabber" "emacs" "vim"))
 ;; (setq juick-auto-subscribe-list '("linux" "emacs" "vim" "juick" "ugnich"))
 ;; (juick-auto-update t)
@@ -50,6 +49,7 @@
 
 (require 'button)
 
+(require 'jabber-ibb)
 (require 'jabber-geoloc)
 (require 'jabber-tune)
 
@@ -99,7 +99,7 @@
 (defvar juick-avatar-internal-stack nil
   "Internal var")
 
-(defvar juick-icon-mode nil
+(defvar juick-icon-mode t
   "This mode display avatar in buffer chat")
 
 (defvar juick-icon-hight nil
