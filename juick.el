@@ -49,6 +49,8 @@
 
 (require 'button)
 
+;; XXX: if jabber load through `jabber-autloads'
+(require 'jabber-chatbuffer)
 (require 'jabber-ibb)
 (require 'jabber-geoloc)
 (require 'jabber-tune)

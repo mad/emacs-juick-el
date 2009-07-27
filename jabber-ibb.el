@@ -31,6 +31,9 @@
 
 ;;; Code:
 
+;; XXX: if jabber load through `jabber-autloads'
+(require 'jabber-si-common)
+
 (defvar jabber-ibb-blocksize 4096
   "XEP-0047 RECOMMENDED to use a 'block-size' of 4096.")
 
