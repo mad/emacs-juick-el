@@ -90,6 +90,11 @@
   "face for displaying underline text"
   :group 'juick-faces)
 
+(defvar juick-reply-id-add-plus nil
+  "Set to t then id inserted with + (e.g NNNN+).
+
+Useful for people more reading instead writing")
+
 (defvar juick-overlays nil)
 
 (defvar juick-bot-jid "juick@juick.com")
@@ -489,7 +494,7 @@ in a match, if match send fake message himself"
     ;; usually #NNNN supposed #NNNN+
     (if (string-match "/" id)
         (insert (concat id " "))
-      (insert (concat id "+"))))
+          (insert (concat id (if juick-reply-id-add-plus "+" " ")))))
   (recenter 10))
 
 (defun juick-find-tag (button)
