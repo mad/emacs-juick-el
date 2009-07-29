@@ -157,6 +157,8 @@ Use FORCE to markup any buffer"
           (jabber-truncate-top)
           (setq juick-point-last-message
                 (re-search-backward (concat juick-bot-jid ">") nil t)))
+        (when (> juick-point-last-message (point-max))
+          (setq juick-point-last-message nil))
         (juick-markup-user-name)
         (juick-markup-id)
         (juick-markup-tag)
@@ -466,6 +468,9 @@ in a match, if match send fake message himself"
   (let ((user-name (buffer-substring-no-properties
                     (overlay-start button)
                     (- (re-search-forward "[\n :]" nil t) 1))))
+    (when (string-match-p "*-jabber-chat-" (buffer-name))
+      (message "Mark set")
+      (push-mark))
     (juick-find-buffer)
     (goto-char (point-max))
     (insert (concat user-name " ")))
@@ -476,6 +481,9 @@ in a match, if match send fake message himself"
   (let ((id (buffer-substring-no-properties
              (overlay-start button)
              (- (re-search-forward "[\n ]" nil t) 1))))
+    (when (string-match-p "*-jabber-chat-" (buffer-name))
+      (message "Mark set")
+      (push-mark))
     (juick-find-buffer)
     (goto-char (point-max))
     ;; usually #NNNN supposed #NNNN+
