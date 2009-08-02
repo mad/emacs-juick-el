@@ -106,6 +106,9 @@ Useful for people more reading instead writing")
 (defvar juick-avatar-internal-stack nil
   "Internal var")
 
+(defvar juick-avatar-update-day 4
+  "Update (download) avatar after `juick-avatar-update-day'")
+
 (defvar juick-icon-mode t
   "This mode display avatar in buffer chat")
 
@@ -170,8 +173,9 @@ Use FORCE to markup any buffer"
         (juick-markup-bold)
         (juick-markup-italic)
         (juick-markup-underline)
-        (if (and juick-icon-mode window-system)
-            (juick-avatar-insert)))))
+        (when (and juick-icon-mode window-system)
+          (clear-image-cache)
+          (juick-avatar-insert)))))
 
 (add-hook 'jabber-alert-message-hooks 'juick-markup-chat)
 
@@ -193,13 +197,16 @@ Use FORCE to markup any buffer"
         (re-search-forward "@" nil t)
         (goto-char (- (point) 1))
         (insert (concat icon-string " "))
-        (re-search-forward ":" nil t)))
-    (clear-image-cache)))
+        (re-search-forward ":" nil t)))))
 
 (defun juick-avatar-download (name)
   "Download avatar from juick.com"
   (if (or (assoc-string name juick-avatar-internal-stack)
-          (file-exists-p (concat juick-tmp-dir "/" name ".png")))
+          (and (file-exists-p (concat juick-tmp-dir "/" name ".png"))
+               (< (time-to-number-of-days
+                   (time-subtract (current-time)
+                                  (nth 5 (file-attributes (concat juick-tmp-dir "/" name ".png")))))
+                  juick-avatar-update-day)))
       nil
     (let ((avatar-url (concat "http://juick.com/" name "/"))
           (url-request-method "GET"))
