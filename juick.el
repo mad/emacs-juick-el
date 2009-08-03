@@ -165,8 +165,6 @@ Use FORCE to markup any buffer"
           (jabber-truncate-top)
           (setq juick-point-last-message
                 (re-search-backward (concat juick-bot-jid ">") nil t)))
-        (when (> juick-point-last-message (point-max))
-          (setq juick-point-last-message nil))
         (juick-markup-user-name)
         (juick-markup-id)
         (juick-markup-tag)
@@ -480,7 +478,7 @@ in a match, if match send fake message himself"
   (let ((user-name (buffer-substring-no-properties
                     (overlay-start button)
                     (- (re-search-forward "[\n :]" nil t) 1))))
-    (when (string-match-p "*-jabber-chat-" (buffer-name))
+    (when (string-match-p juick-bot-jid (buffer-name))
       (message "Mark set")
       (push-mark))
     (juick-find-buffer)
@@ -493,7 +491,7 @@ in a match, if match send fake message himself"
   (let ((id (buffer-substring-no-properties
              (overlay-start button)
              (- (re-search-forward "[\n ]" nil t) 1))))
-    (when (string-match-p "*-jabber-chat-" (buffer-name))
+    (when (string-match-p juick-bot-jid (buffer-name))
       (message "Mark set")
       (push-mark))
     (juick-find-buffer)
@@ -519,17 +517,25 @@ in a match, if match send fake message himself"
 (defun juick-find-buffer ()
   "Find buffer with `juick-bot-jid'"
   (interactive)
-  (when (not (string-match (concat "*-jabber-chat-" juick-bot-jid "-*")
-                           (buffer-name)))
+  (when (not (string-match juick-bot-jid (buffer-name)))
     (delete-window)
     (let ((juick-window (get-window-with-predicate
                          (lambda (w)
-                           (string-match
-                            (concat "*-jabber-chat-" juick-bot-jid "-*")
-                            (buffer-name (window-buffer w)))))))
+                           (string-match juick-bot-jid
+                                         (buffer-name (window-buffer w)))))))
       (if juick-window
           (select-window juick-window)
         (jabber-chat-with (jabber-read-account) juick-bot-jid)))))
+
+(defadvice jabber-chat-with (around jabber-chat-send-around-advice
+                                    (jc jid &optional other-window) activate)
+  ad-do-it
+  (when (string-match-p juick-bot-jid jid)
+    (save-excursion
+      (goto-char (point-min))
+      (setq juick-point-last-message (point-min))
+      (juick-markup-chat juick-bot-jid (current-buffer) nil nil t)
+      (setq juick-point-last-message (point-max)))))
 
 (defadvice jabber-chat-send (around jabber-chat-send-around-advice
                                     (jc body) activate)
