@@ -121,6 +121,8 @@ Useful for people more reading instead writing")
 (defvar juick-auto-subscribe-list nil
   "This list contained tag or username for auto subscribe")
 
+(defvar juick-bookmark-file (expand-file-name "~/.emacs.d/.juick-bkm"))
+
 (defvar juick-bookmarks '())
 
 (defvar juick-api-aftermid nil)
@@ -142,15 +144,6 @@ Useful for people more reading instead writing")
 (defvar juick-bold-regex "[\n ]\\(\\*[^\n]+*\\*\\)[\n ]")
 (defvar juick-italic-regex "[\n ]\\(/[^\n]+/\\)[\n ]")
 (defvar juick-underline-regex "[\n ]\\(\_[^\n]+\_\\)[\n ]")
-
-(defvar juick-bookmark-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map text-mode-map)
-    (define-key map "q" 'juick-find-buffer)
-    (define-key map (kbd "TAB") 'juick-next-button)
-    (define-key map (kbd "<backtab>") 'backward-button)
-    map)
-  "Keymap for `juick-bookmark-mode'.")
 
 (defun juick-markup-chat (from buffer text proposed-alert &optional force)
   "Markup  message from `juick-bot-jid'.
@@ -335,13 +328,25 @@ in a match, if match send fake message himself"
                          " (" (or (jabber-xml-get-attribute x 'replies) "0") " replies)"
                          " (S)")))))))))
 
-(defun juick-bookmark-list ()
+(defvar juick-bookmark-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map text-mode-map)
+    (define-key map "q" 'juick-find-buffer)
+    (define-key map "d" 'juick-bookmark-remove)
+    (define-key map "\C-k" 'juick-bookmark-remove)
+    (define-key map (kbd "TAB") 'juick-next-button)
+    (define-key map (kbd "<backtab>") 'backward-button)
+    map)
+  "Keymap for `juick-bookmark-mode'.")
+
+(defun juick-bookmark-list (&optional force)
   (interactive)
   (let ((tmp-pos juick-point-last-message))
     (setq juick-point-last-message nil)
-    (split-window-vertically -10)
-    (windmove-down)
-    (switch-to-buffer "*juick-bookmark*")
+    (when (null force)
+      (split-window-vertically -10)
+      (windmove-down)
+      (switch-to-buffer "*juick-bookmark*"))
     (toggle-read-only -1)
     (delete-region (point-min) (point-max))
     (dolist (x juick-bookmarks)
@@ -352,11 +357,38 @@ in a match, if match send fake message himself"
     (setq juick-point-last-message tmp-pos)
     (juick-bookmark-mode)))
 
+(defun juick-bookmark-save ()
+  (interactive)
+  (save-excursion
+    (find-file juick-bookmark-file)
+    (delete-region (point-min) (point-max))
+    (insert ";; -*- mode:emacs-lisp; coding: utf-8-emacs; -*-\n\n")
+    (insert "(setq juick-bookmarks '")
+    (insert (prin1-to-string juick-bookmarks))
+    (insert ")")
+    (write-file juick-bookmark-file)
+    (kill-buffer (current-buffer))))
+
 (defun juick-bookmark-add (id desc)
   (interactive)
   (when (not desc)
     (setq desc (read-string (concat "Type description for " id ": "))))
-  (push `(,id . ,desc) juick-bookmarks))
+  (push `(,id . ,desc) juick-bookmarks)
+  (juick-bookmark-save))
+
+(defun juick-bookmark-remove ()
+  (interactive)
+  (save-excursion
+    (beginning-of-line)
+    (when (or (looking-at "#[0-9]+\\(/[0-9]+\\)?")
+              (looking-at "@[0-9A-Za-z@\.\-]+"))
+      (setq juick-bookmarks
+            (remove-if
+             '(lambda (x)
+                (if (string-match-p (car x) (match-string-no-properties 0))
+                    t)) juick-bookmarks))
+      (juick-bookmark-save)
+      (juick-bookmark-list t))))
 
 (define-derived-mode juick-bookmark-mode text-mode
   "juick bookmark mode"
@@ -368,7 +400,7 @@ in a match, if match send fake message himself"
   '(lambda ()
      (interactive)
      (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
-         (juick-bookmark-add (match-string 0) nil)
+         (juick-bookmark-add (match-string-no-properties 0) nil)
        (self-insert-command 1))))
 (define-key jabber-chat-mode-map "s"
   '(lambda ()
