@@ -43,7 +43,6 @@
 ;; b - bookmark message/user
 ;; p - make private message with user
 ;; C-cjb - `juick-bookmark-list'
-;; TAB - `juick-next-button'
 
 ;;; Code:
 
@@ -54,6 +53,7 @@
 (require 'jabber-ibb)
 (require 'jabber-geoloc)
 (require 'jabber-tune)
+(require 'jabber-moods)
 
 (require 'google-maps)
 
@@ -334,8 +334,6 @@ in a match, if match send fake message himself"
     (define-key map "q" 'juick-find-buffer)
     (define-key map "d" 'juick-bookmark-remove)
     (define-key map "\C-k" 'juick-bookmark-remove)
-    (define-key map (kbd "TAB") 'juick-next-button)
-    (define-key map (kbd "<backtab>") 'backward-button)
     map)
   "Keymap for `juick-bookmark-mode'.")
 
@@ -394,7 +392,6 @@ in a match, if match send fake message himself"
   "juick bookmark mode"
   "Major mode for getting bookmark")
 
-(define-key jabber-chat-mode-map (kbd "TAB") 'juick-next-button)
 (define-key jabber-chat-mode-map "\C-cjb" 'juick-bookmark-list)
 (define-key jabber-chat-mode-map "b"
   '(lambda ()
