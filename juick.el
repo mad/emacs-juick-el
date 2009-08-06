@@ -42,11 +42,13 @@
 ;; d - delete message
 ;; b - bookmark message/user
 ;; p - make private message with user
+;; g - open browser with id/user
 ;; C-cjb - `juick-bookmark-list'
 
 ;;; Code:
 
 (require 'button)
+(require 'browse-url)
 
 ;; XXX: if jabber load through `jabber-autloads'
 (require 'jabber-chatbuffer)
@@ -393,6 +395,13 @@ in a match, if match send fake message himself"
   "Major mode for getting bookmark")
 
 (define-key jabber-chat-mode-map "\C-cjb" 'juick-bookmark-list)
+(define-key jabber-chat-mode-map "g"
+  '(lambda ()
+     (interactive)
+     (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@\\([0-9A-Za-z@\.\-]+\\)"))
+         (browse-url (concat "http://juick.com/"
+                      (match-string-no-properties 1)))
+       (self-insert-command 1))))
 (define-key jabber-chat-mode-map "b"
   '(lambda ()
      (interactive)
