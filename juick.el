@@ -565,7 +565,7 @@ in a match, if match send fake message himself"
           (select-window juick-window)
         (jabber-chat-with (jabber-read-account) juick-bot-jid)))))
 
-(defadvice jabber-chat-with (around jabber-chat-send-around-advice
+(defadvice jabber-chat-with (around jabber-chat-with-around-advice
                                     (jc jid &optional other-window) activate)
   ad-do-it
   (when (string-match-p juick-bot-jid jid)
