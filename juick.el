@@ -251,16 +251,33 @@ Use FORCE to markup any buffer"
 (defun juick-api-request (juick-stanza type callback)
   "Make and process juick stanza
 \(http://juick.com/help/api/xmpp/)"
-  ;; XXX: get current jc or use specified jc?
-  (unless (memq jabber-buffer-connection jabber-connections)
-    (let ((new-jc (jabber-find-active-connection jabber-buffer-connection)))
-      (if new-jc
-          (setq jabber-buffer-connection new-jc)
-        (setq jabber-buffer-connection (jabber-read-account)))))
-  (jabber-send-iq jabber-buffer-connection juick-bot-jid type juick-stanza
-                  callback nil
-                  ;; this error code='404' (last message not found)
-                  nil nil))
+  (let ((completions
+         (mapcar (lambda (c)
+                   (cons
+                    (jabber-connection-bare-jid c)
+                    c))
+                 jabber-connections))
+        (current-connection
+         ;; if the buffer is associated with a connection, use it
+         (when (and jabber-buffer-connection
+                    (memq jabber-buffer-connection jabber-connections))
+           (jabber-connection-bare-jid jabber-buffer-connection))))
+    (if (not current-connection)
+        ;; then use all accounts where exists juick@juick.com
+        (dolist (jc jabber-connections)
+          (if (member-if (lambda (x)
+                           (string-match (symbol-name x)  juick-bot-jid))
+                         (plist-get (fsm-get-state-data jc) :roster))
+              (jabber-send-iq jc juick-bot-jid type juick-stanza
+                              callback nil
+                              ;; this error code='404' (last message not found)
+                              nil nil)))
+      ;; else use current connection
+      (jabber-send-iq (cdr (assoc current-connection completions))
+                      juick-bot-jid type juick-stanza
+                      callback nil
+                      ;; this error code='404' (last message not found)
+                      nil nil))))
 
 (defun juick-api-unsubscribe (id)
   "Unsubscribe to message with ID."
@@ -311,7 +328,7 @@ in a match, if match send fake message himself"
           ;; make fake incomning message
           (setq first-message nil)
           (jabber-process-chat
-           (jabber-read-account)
+           jc
            `(message
              ((from . ,juick-bot-jid))
              (body nil ,(concat
@@ -447,7 +464,12 @@ in a match, if match send fake message himself"
   "Send TEXT to TO imediately"
   (interactive)
   (save-excursion
-    (let ((buffer (jabber-chat-create-buffer (jabber-read-account) to)))
+    (let* ((current-connection
+            ;; if the buffer is associated with a connection, use it
+            (when (and jabber-buffer-connection
+                       (memq jabber-buffer-connection jabber-connections))
+              (jabber-connection-bare-jid jabber-buffer-connection)))
+           (buffer (jabber-chat-create-buffer (jabber-read-account) to)))
       (set-buffer buffer)
       (goto-char (point-max))
       (delete-region jabber-point-insert (point-max))
@@ -563,11 +585,14 @@ in a match, if match send fake message himself"
                                          (buffer-name (window-buffer w)))))))
       (if juick-window
           (select-window juick-window)
-        (jabber-chat-with (jabber-read-account) juick-bot-jid)))))
+        ;; XXX: if nil open last juick@juick buffer
+        (jabber-chat-with nil juick-bot-jid)))))
 
 (defadvice jabber-chat-with (around jabber-chat-with-around-advice
                                     (jc jid &optional other-window) activate)
+  "Used for markup history buffer"
   ad-do-it
+  ;; FIXME: this activate ever buffer with juick@juick.com
   (when (string-match-p juick-bot-jid jid)
     (save-excursion
       (goto-char (point-min))
