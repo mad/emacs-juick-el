@@ -4,6 +4,7 @@
 
 ;; Author: mad <owner.mad.epa@gmail.com>
 ;; Keywords: juick
+;; Version: 0.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
