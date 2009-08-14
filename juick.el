@@ -412,53 +412,71 @@ in a match, if match send fake message himself"
   "Major mode for getting bookmark")
 
 (define-key jabber-chat-mode-map "\C-cjb" 'juick-bookmark-list)
-(define-key jabber-chat-mode-map "g"
-  '(lambda ()
-     (interactive)
-     (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@\\([0-9A-Za-z@\.\-]+\\)"))
-         (browse-url (concat "http://juick.com/"
-                      (match-string-no-properties 1)))
-       (self-insert-command 1))))
-(define-key jabber-chat-mode-map "b"
-  '(lambda ()
-     (interactive)
-     (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
-         (juick-bookmark-add (match-string-no-properties 0) nil)
-       (self-insert-command 1))))
-(define-key jabber-chat-mode-map "s"
-  '(lambda ()
-     (interactive)
-     (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@[0-9A-Za-z@\.\-]+"))
-         (if (match-string 1)
-             (juick-api-subscribe (match-string-no-properties 1))
-           (juick-send-message juick-bot-jid
-                               (concat "S " (match-string-no-properties 0))))
-       (self-insert-command 1))))
-(define-key jabber-chat-mode-map "u"
-  '(lambda ()
-     (interactive)
-     (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@[0-9A-Za-z@\.\-]+"))
-         (if (match-string 1)
-             (juick-api-unsubscribe (match-string-no-properties 1))
-           (juick-send-message juick-bot-jid
-                               (concat "U " (match-string-no-properties 0))))
-       (self-insert-command 1))))
-(define-key jabber-chat-mode-map "d"
-  '(lambda ()
+
+(define-key jabber-chat-mode-map "g" 'juick-go-url)
+(define-key jabber-chat-mode-map "п" 'juick-go-url)
+
+(define-key jabber-chat-mode-map "b" 'juick-go-bookmark)
+(define-key jabber-chat-mode-map "и" 'juick-go-bookmark)
+
+(define-key jabber-chat-mode-map "s" 'juick-go-subscribe)
+(define-key jabber-chat-mode-map "ы" 'juick-go-subscribe)
+
+(define-key jabber-chat-mode-map "u" 'juick-go-unsubscribe)
+(define-key jabber-chat-mode-map "г" 'juick-go-unsubscribe)
+
+(define-key jabber-chat-mode-map "d" 'juick-go-delete)
+(define-key jabber-chat-mode-map "в" 'juick-go-delete)
+
+(define-key jabber-chat-mode-map "p" 'juick-go-private)
+(define-key jabber-chat-mode-map "з" 'juick-go-private)
+
+(defun juick-go-url ()
+  (interactive)
+  (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@\\([0-9A-Za-z@\.\-]+\\)"))
+      (browse-url (concat "http://juick.com/"
+                          (match-string-no-properties 1)))
+    (self-insert-command 1)))
+
+(defun juick-go-bookmark ()
+  (interactive)
+  (if (or (looking-at "#[0-9]+") (looking-at "@[0-9A-Za-z@\.\-]+"))
+      (juick-bookmark-add (match-string-no-properties 0) nil)
+    (self-insert-command 1)))
+
+(defun juick-go-subscribe ()
+  (interactive)
+  (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@[0-9A-Za-z@\.\-]+"))
+      (if (match-string 1)
+          (juick-api-subscribe (match-string-no-properties 1))
+        (juick-send-message juick-bot-jid
+                            (concat "S " (match-string-no-properties 0))))
+    (self-insert-command 1)))
+
+(defun juick-go-unsubscribe ()
+  (interactive)
+  (if (or (looking-at "#\\([0-9]+\\)") (looking-at "@[0-9A-Za-z@\.\-]+"))
+      (if (match-string 1)
+          (juick-api-unsubscribe (match-string-no-properties 1))
+        (juick-send-message juick-bot-jid
+                            (concat "U " (match-string-no-properties 0))))
+    (self-insert-command 1)))
+
+(defun juick-go-delete ()
      (interactive)
      (if (looking-at "#[0-9]+\\(/[0-9]+\\)?")
          (juick-send-message juick-bot-jid
                              (concat "D " (match-string-no-properties 0)))
-       (self-insert-command 1))))
-(define-key jabber-chat-mode-map "p"
-  '(lambda ()
-     (interactive)
-     (if (looking-at "@[0-9A-Za-z@\.\-]+")
-         (progn
-           (goto-char (point-max))
-           (delete-region jabber-point-insert (point-max))
-           (insert (concat "PM " (match-string-no-properties 0) " ")))
-       (self-insert-command 1))))
+       (self-insert-command 1)))
+
+(defun juick-go-private ()
+  (interactive)
+  (if (looking-at "@[0-9A-Za-z@\.\-]+")
+      (progn
+        (goto-char (point-max))
+        (delete-region jabber-point-insert (point-max))
+        (insert (concat "PM " (match-string-no-properties 0) " ")))
+    (self-insert-command 1)))
 
 (defun juick-send-message (to text)
   "Send TEXT to TO imediately"
