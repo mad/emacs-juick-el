@@ -1,60 +1,59 @@
 <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-# Для чего?
+# WHAT IT
 
-Этот плагин добавляет следующие возможности:
+This plugin add next features:
 
-1. цветные id/username/tag;
-1. кликабельные id/username/tag:
-    1. Если нажать `RET` на id/username, то оно будет вставлено в буфер ввода;
-    1. Если нажать `RET` на теге, то будет выведено последние 10 сообщений с этим тегом;
-    1. Если нажать `s/u` на id/username, то вы будете подписаны/отписаны на это
-    сообщение/пользователя;
-    1. Если нажать `p` на имени пользователя, то в поле ввода будет вставлен
-    текст вида `PM @username`.
-1. Геолокация (через PEP и message);
-1. Tune (через PEP и message);
-1. Mood (через message);
-1. Загрузка картинок через IBB (IBB реализован в одну сторону, т.е. позволяет
-только отправлять файлы, но не принимать);
-1. Отображение аватарок;
-1. Исправление неправильного ввода команд juick бота (РУДЗ -> HELP, № -> #, ...);
-1. Подписка на теги;
-1. Автоматическая подписка на сообщения с определенным тегом/именем пользователя;
-1. Закладки.
+1. colored id/username/tag;
+1. clickable id/username/tag:
+    1. If press `RET` on id/username, then will been added in reply buffer;
+    1. If press `RET` on tags, then printed last 10 message with tag;
+    1. If press `s/u` on id/username, then you will been
+       subscribed/unsubscribed on user/message;
+    1. If press `p` on username, then will been added in reply buffer text
+       type `PM @username`;
+1. Geoloc (through PEP or message);
+1. Tune (through PEP or message);
+1. Mood (through message);
+1. Upload images through IBB (IBB implement only one way - UPLOAD, DONT RECIEVE);
+1. Show avatars;
+1. Check bot commands, e.g. РУДЗ -> HELP, № -> # (usefull for russian users);
+1. Subscribing on the tags;
+1. Auto subscribing on tag or username;
+1. Bookmarks.
 
 [screenshot](http://img14.imageshack.us/img14/2484/juickwithavatar.jpg)
 
-# Как пользоваться?
+# HOW USE
 
-### Навигация
+### Navigation
 
-- Для перемещения по сообщениям можно использовать `M-e`, `M-a`;
-- `g` - на имение пользователя или номере сообщение, откроет браузер с
-   соответсвующей ссылкой.
+- To move on message, you can use `M-e`, `M-a` (default emacs keybindings);
+- `g` - on username or message id, open browser with;
 
-После того как вы ответили на сообщение т.е. нажали `RET` на id, можно нажать
-`C-u C-SPACE` (стандартное сочетание емакса для навигация по локальным меткам) и
-переместиться на позицию где вы были (удобно когда приходит много сообщений и
-по мере чтения отвечать на них)
+Once you have replied to the message, ie click on the `RET` id, you can press
+`C-u C-SPACE` (default emacs combination to navigate local labels) and
+move to the position where you are (usefull when it comes a lot of messages and
+as reading to answer them)
 
-### Геолокация
+### Geoloc
 
-Указать геолокацию можно одним из способов:
+Specify the geolocation data may be one of the ways:
 
-1. Через PEP
-Что бы отправить PEP сообщение с геолокацией нажмите `C-cjp` (или
-наберите `jabber-pep-location-send`)
-далее следует ввести название местности (например "Санкт Петербург"), после
-чего будет произведена попытка узнать координаты этой местности через google
-maps, и отправлена серверу.
-1. Через сообщение eсли jabber сервер не поддерживает PEP, то сообщить о
-геолокации можно прямо в сообщение. После того как вы набрали сообщение,
-нажмите `C-cjg` (или `jabber-pep-location-send`), геолокация указывается так
-же как и в предыдущем случае.
+1. Through PEP
+
+What would send a message to the PEP geolocation data, press `C-cjp` (or
+call `jabber-pep-location-send`)
+further define the area (eg, "St. Petersburg"), after
+what will be an attempt to find the coordinates of this place through google
+maps, and sent to the server.
+1. In a message if jabber server does not support the PEP, a report on
+geolocation data can be directly in the message. Once you've typed the message,
+press `C-cjg` (or `jabber-pep-location-send`), geolocation data indicate both
+same as in the previous case.
 
 ### Tune
 
-Если вы пользуетесь emms, то для отправки tune сообщений можно использовать следующий код:
+If you use emms, tune it to send messages, you can use the following code:
 
     (add-hook 'emms-player-started-hook
           '(lambda ()
@@ -68,100 +67,100 @@ maps, и отправлена серверу.
                                (emms-track-get emms-current-track 'info-tracknumber)
                                ""))))
 
-Если вы используете какой либо другой плеер то, необходимо получить данные о
-исполнителе (через dbus/etc) и выполнить команду:
+If you use any other player it is necessary to obtain data on
+artist (via dbus etc) and use the command:
 
     emacsclient --eval "(jabber-pep-tune-send \"artist\" \"length\" \"rating\"
     \"source\" \"title\" \"track\" \"uri\")"
 
-или (если сервер не поддерживает PEP):
+or (if the server does not support PEP):
 
     emacsclient --eval "(jabber-event-tune-send juick-bot-jid \"artist\" \"length\" \"rating\"
     \"source\" \"title\" \"track\" \"uri\")"
 
+Note:
 
-Примечание:
-
-Если сервре не поддерживает PEP то в случае emms стоит использовать
-`jabber-event-tune-send` (функция включает дополнительный параметр - jid
-пользователя которому будет отсылаться event, т.е. jid juick бота.
+If the server does not support the PEP in the case of emms is used
+`jabber-event-tune-send` (function includes an additional parameter - jid
+user who will receive this event, ie `jid-juick-bot`.
 
 ### Mood
 
-Перед тем как запостить сообщение, нажмите `M-x jabber-mood-message` выберите
-настроение и нажмите `RET`, теперь это сообщение будет отправлено с
-соответствующим настроением, последующие сообщения будут посылаться без mood.
+Before post message, press the `Mx jabber-mood-message` select
+mood, and then `RET`, now this message will be sent to
+the appropriate mood, the next message will be sent without a mood.
 
-### Отправка картинок
+### Send images
 
-Для отправки картинок используется стандартная функция jabber-el -
+To send pictures using the standard function of jabber-el --
 `jabber-ft-send`
 
-### Аватарки
+### Avatars
 
-За отображения аватарок отвечает переменная `juick-icon-mode`, если она имеет
-значение t, то они отображаются иначе - нет (по умолчанию t).
+For display avatars responsible variable `juick-icon-mode`, if it is
+value t, then they are displayed, if nil - not (default t).
 
-Размер аватарок регулируется с помощью переменной `juick-icon-hight`, если она
-имеет значение t, то полагается размер 96x96, иначе  32x32 пикселя (по
-умолчанию nil).
+Size avatars regulated by variable `juick-icon-hight`, if it
+is set to t, to used size 96x96, if nil used 32x32 pixels (for
+default nil).
 
-По умолчанию аватарки сохраняются в `/tmp/juick-images-<user name>/`, отвечает
-за это переменная `juick-tmp-dir`.
+By default avatars stored in `/ tmp/juick-images- <user name> /`, is responsible
+for this variable is `juick-tmp-dir`.
 
-### Подписка на теги
+### Subscribe on the tags
 
-Для того что бы подписаться на тег, нужно его добавить в список
-`juick-tag-subscribed`, например вот так:
+In order to subscribe to a tag, you need to add it to the list
+`juick-tag-subscribed`, for example like this:
 
     (setq juick-tag-subscribed '("linux" "juick"))
 
-и активировать автообновление:
+and activate auto update:
 
     (juick-auto-update t)
 
-Для автоматической подписки на сообщения (S #NNNNN) с определенными тегами или
-именами (S @ABC) пользователей, используется список
-`juick-auto-subscribe-list`, например так:
+
+To automatically subscribe to the message (S # NNNNN) with certain tags, or
+name (S @ ABC) users, use the list
+`juick-auto-subscribe-list`, for example:
 
     (setq juick-auto-subscribe-list '("linux" "juick" "ugnich"))
 
-### Закладки
+### Bookmarks
 
-Что бы внести пользователя или сообщение в закладки - поставьте курсор на
-сообщение/имя пользователя и нажмите `b`.
+What would make the user or a message to your bookmarks - put the cursor on
+message/username and press `b`.
 
-Просмотр списка закладок - `C-cjb`;
+View bookmarks - `C-cjb`;
 
-Удаление закладки - `C-k`, `d` (в списки закладок);
+Delete bookmark - `C-k`, `d` (in the bookmarks list);
 
-По умолчанию закладки сохраняются в `~/.emacs.d/.juick-bkm`, отвечает за это
-переменная `juick-bookmark-file`.
+By default, bookmarks are stored in `~ / .emacs.d / .juick-bkm`, is
+responsible for this variable `juick-bookmark-file`.
 
-### Как установить?
+### HOW INSTALL
 
-Загрузите последнюю версию:
+Download the latest version:
 
     git clone git://github.com/mad/emacs-juick-el.git
 
-Добавьте следующие строки в ваш инициализационный файл:
+Add the following lines to your initialization file:
 
     (add-to-list 'load-path "path/to/juick-el/")
     (require 'juick)
 
-# Дополнительно
+# NOTE
 
-Это дополнение тестировалось на jabber-el 0.7.82 и выше.
+This plugin tested on jabber-el 0.7.82 and above.
 
-**ВНИМАНИЕ**
+**ATTENTION**
 
-C jabber-el 0.7.1 и ниже плагин не работает!
+C jabber-el 0.7.1 and below the plugin does not work!
 
-### Баги
+### KNOW ISSUE
 
-- При отправки большой картинки возникает "зависание" емакса, связано с тем что
-  IBB протокол реализован таким образом, что картинка отправляется не
-  асинхронно.
+- When sending a large image a "hang" emacs, due to the fact that
+   IBB protocol is implemented in such a way that send image no
+   asynchronously.
 
-Просьба о багах/фичах/etc писать сюда [#104079](http://juick.com/mad/104079)
-или на мыло.
+Request for bugs/features/etc write here [#104079](http://juick.com/mad/104079)
+or mail.
