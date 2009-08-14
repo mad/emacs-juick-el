@@ -592,7 +592,9 @@ in a match, if match send fake message himself"
                                     (jc jid &optional other-window) activate)
   "Used for markup history buffer"
   ad-do-it
-  ;; FIXME: this activate ever buffer with juick@juick.com
+  ;; FIXME: this activate ever when open buffer with juick@juick.com,
+  ;; maybe adviced `jabber-chat-insert-backlog-entry' instead
+  ;; `jabber-chat-with'.
   (when (string-match-p juick-bot-jid jid)
     (save-excursion
       (goto-char (point-min))
@@ -607,6 +609,8 @@ in a match, if match send fake message himself"
       (let* ((body (cond
                     ((string= "№" body)
                      "#")
+                    ((string= "№+" body)
+                     "#+")
                     ((string= "РУДЗ" body)
                      "HELP")
                     ((string= "help" body)
