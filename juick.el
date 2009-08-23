@@ -160,7 +160,7 @@ Use FORCE to markup any buffer"
         (when (null force)
           (jabber-truncate-top)
           (setq juick-point-last-message
-                (re-search-backward (concat juick-bot-jid ">") nil t)))
+                (re-search-backward "\\[[0-9]+:[0-9]+\\].*>" nil t)))
         (juick-markup-user-name)
         (juick-markup-id)
         (juick-markup-tag)
