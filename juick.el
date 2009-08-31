@@ -1,6 +1,7 @@
 ;;; juick.el --- improvement reading juick@juick.com
 
 ;; Copyright (C) 2009  mad
+;; Copyright (C) 2009  vyazovoi
 
 ;; Author: mad <owner.mad.epa@gmail.com>
 ;; Keywords: juick
@@ -434,20 +435,25 @@ in a match, if match send fake message himself"
 
 (defun juick-go-url ()
   (interactive)
-  (if (and (equal (get-text-property (point) 'read-only) t) (or (thing-at-point-looking-at "#\\([0-9]+\\)") (thing-at-point-looking-at "@\\([0-9A-Za-z@\.\-]+\\)")))
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (or (thing-at-point-looking-at "#\\([0-9]+\\)")
+               (thing-at-point-looking-at "@\\([0-9A-Za-z@\.\-]+\\)")))
       (browse-url (concat "http://juick.com/"
                           (match-string-no-properties 1)))
     (self-insert-command 1)))
 
 (defun juick-go-bookmark ()
   (interactive)
-  (if (or (thing-at-point-looking-at "#[0-9]+") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
+  (if (or (thing-at-point-looking-at "#[0-9]+")
+          (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
       (juick-bookmark-add (match-string-no-properties 0) nil)
     (self-insert-command 1)))
 
 (defun juick-go-subscribe ()
   (interactive)
-  (if (and (equal (get-text-property (point) 'read-only) t) (or (thing-at-point-looking-at "#\\([0-9]+\\)") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+")))
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (or (thing-at-point-looking-at "#\\([0-9]+\\)")
+               (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+")))
       (if (match-string 1)
           (juick-api-subscribe (match-string-no-properties 1))
         (juick-send-message juick-bot-jid
@@ -456,7 +462,9 @@ in a match, if match send fake message himself"
 
 (defun juick-go-unsubscribe ()
   (interactive)
-  (if (and (equal (get-text-property (point) 'read-only) t) (or (thing-at-point-looking-at "#\\([0-9]+\\)") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+")))
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (or (thing-at-point-looking-at "#\\([0-9]+\\)")
+               (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+")))
       (if (match-string 1)
           (juick-api-unsubscribe (match-string-no-properties 1))
         (juick-send-message juick-bot-jid
@@ -465,14 +473,16 @@ in a match, if match send fake message himself"
 
 (defun juick-go-delete ()
      (interactive)
-     (if (and (equal (get-text-property (point) 'read-only) t) (thing-at-point-looking-at "#[0-9]+\\(/[0-9]+\\)?"))
+     (if (and (equal (get-text-property (point) 'read-only) t)
+              (thing-at-point-looking-at "#[0-9]+\\(/[0-9]+\\)?"))
          (juick-send-message juick-bot-jid
                              (concat "D " (match-string-no-properties 0)))
        (self-insert-command 1)))
 
 (defun juick-go-private ()
   (interactive)
-  (if (and (equal (get-text-property (point) 'read-only) t) (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
       (progn
         (goto-char (point-max))
         (delete-region jabber-point-insert (point-max))
