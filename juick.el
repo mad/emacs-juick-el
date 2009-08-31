@@ -673,7 +673,8 @@ in a match, if match send fake message himself"
     (delete-overlay overlay))
   (setq juick-overlays nil))
 
-(load-file juick-bookmark-file)
+(if (file-exists-p juick-bookmark-file)
+    (load-file juick-bookmark-file))
 
 (provide 'juick)
 ;;; juick.el ends here
