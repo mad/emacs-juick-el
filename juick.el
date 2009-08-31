@@ -434,7 +434,7 @@ in a match, if match send fake message himself"
 
 (defun juick-go-url ()
   (interactive)
-  (if (or (thing-at-point-looking-at "#\\([0-9]+\\)") (thing-at-point-looking-at "@\\([0-9A-Za-z@\.\-]+\\)"))
+  (if (or (thing-at-point-looking-at "#\\([0-9]+\\)[[:blank:]]+.") (thing-at-point-looking-at "@\\([0-9A-Za-z@\.\-]+\\)[[:blank:]]+."))
       (browse-url (concat "http://juick.com/"
                           (match-string-no-properties 1)))
     (self-insert-command 1)))
@@ -447,7 +447,7 @@ in a match, if match send fake message himself"
 
 (defun juick-go-subscribe ()
   (interactive)
-  (if (or (thing-at-point-looking-at "#\\([0-9]+\\)") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
+  (if (or (thing-at-point-looking-at "#\\([0-9]+\\)[[:blank:]]+.") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
       (if (match-string 1)
           (juick-api-subscribe (match-string-no-properties 1))
         (juick-send-message juick-bot-jid
@@ -456,7 +456,7 @@ in a match, if match send fake message himself"
 
 (defun juick-go-unsubscribe ()
   (interactive)
-  (if (or (thing-at-point-looking-at "#\\([0-9]+\\)") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
+  (if (or (thing-at-point-looking-at "#\\([0-9]+\\)[[:blank:]]+.") (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
       (if (match-string 1)
           (juick-api-unsubscribe (match-string-no-properties 1))
         (juick-send-message juick-bot-jid
