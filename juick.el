@@ -444,10 +444,11 @@ in a match, if match send fake message himself"
 
 (defun juick-go-bookmark ()
   (interactive)
-  (if (or (thing-at-point-looking-at "#[0-9]+")
-          (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+"))
-      (juick-bookmark-add (match-string-no-properties 0) nil)
-    (self-insert-command 1)))
+  (if (and (equal (get-text-property (point) 'read-only) t)
+	   (or (thing-at-point-looking-at "#[0-9]+")
+		   (thing-at-point-looking-at "@[0-9A-Za-z@\.\-]+")))
+	       (juick-bookmark-add (match-string-no-properties 0) nil)
+	     (self-insert-command 1)))
 
 (defun juick-go-subscribe ()
   (interactive)
