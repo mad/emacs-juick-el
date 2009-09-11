@@ -250,6 +250,10 @@ Use FORCE to markup any buffer"
       (setq juick-timer nil)
       (message "auto update deactivated")))))
 
+(defun juick-some-message (id start &optional end)
+  ""
+  )
+
 (defun juick-api-request (juick-stanza type callback)
   "Make and process juick stanza
 \(http://juick.com/help/api/xmpp/)"
@@ -432,6 +436,34 @@ in a match, if match send fake message himself"
 
 (define-key jabber-chat-mode-map "p" 'juick-go-private)
 (define-key jabber-chat-mode-map "з" 'juick-go-private)
+
+(define-key jabber-chat-mode-map "a" 'juick-add-tag)
+(define-key jabber-chat-mode-map "r" 'juick-remove-tag)
+
+(defun juick-remove-tag ()
+  (interactive)
+  (save-excursion
+    (if (and (equal (get-text-property (point) 'read-only) t)
+             (thing-at-point-looking-at "\\(\\*[^ \n]+\\)"))
+        (let ((tag (match-string-no-properties 1))
+              (id (if (re-search-forward "^#[0-9]+\\(/[0-9]+\\)?" nil)
+                      (match-string-no-properties 0))))
+          (when (and id tag)
+            (message (concat "Tag " tag " (" id ")" " deleted"))
+            (juick-send-message juick-bot-jid (concat id " " tag)))))
+    (self-insert-command 1)))
+
+(defun juick-add-tag ()
+  (interactive)
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (thing-at-point-looking-at "#\\([0-9]+\\)"))
+      (let ((id (match-string-no-properties 0))
+            (tag (read-string "Type tag: ")))
+        (when (and id tag)
+          (message (concat "Tag " tag " (" id ")" " added"))
+          (juick-send-message juick-bot-jid
+                              (concat id (if (string-match "^\\*" tag) " " " *") tag))))
+    (self-insert-command 1)))
 
 (defun juick-go-url ()
   (interactive)
