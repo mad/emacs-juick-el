@@ -442,16 +442,16 @@ in a match, if match send fake message himself"
 
 (defun juick-remove-tag ()
   (interactive)
-    (if (and (equal (get-text-property (point) 'read-only) t)
-             (thing-at-point-looking-at "\\(\\*[^ \n]+\\)"))
-        (save-excursion
-          (let ((tag (match-string-no-properties 1))
-                (id (if (re-search-forward "^#[0-9]+\\(/[0-9]+\\)?" nil)
-                        (match-string-no-properties 0))))
-            (when (and id tag)
-              (message (concat "Tag " tag " (" id ")" " deleted"))
-              (juick-send-message juick-bot-jid (concat id " " tag)))))
-      (self-insert-command 1)))
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (thing-at-point-looking-at "\\(\\*[^ \n]+\\)"))
+      (save-excursion
+        (let ((tag (match-string-no-properties 1))
+              (id (if (re-search-forward "^#[0-9]+\\(/[0-9]+\\)?" nil)
+                      (match-string-no-properties 0))))
+          (when (and id tag)
+            (message (concat "Tag " tag " (" id ")" " deleted"))
+            (juick-send-message juick-bot-jid (concat id " " tag)))))
+    (self-insert-command 1)))
 
 (defun juick-add-tag ()
   (interactive)
