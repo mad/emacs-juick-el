@@ -235,26 +235,18 @@ Use FORCE to markup any buffer"
                        (kill-buffer result-buffer)))
                   (list name))))
 
-(defun juick-auto-update (&optional arg)
-  (interactive "P")
-  (let ((arg (if (numberp arg)
-                 (prefix-numeric-value arg)
-               1)))
-    (cond
-     ((and (> arg 0) (null juick-timer))
-       (setq juick-timer
-             (run-at-time "0 sec"
-                          juick-timer-interval
-                          #'juick-api-last-message))
-       (message "auto update activated"))
-     ((and (<= arg 0) juick-timer)
-      (cancel-timer juick-timer)
-      (setq juick-timer nil)
-      (message "auto update deactivated")))))
-
-(defun juick-some-message (id start &optional end)
-  ""
-  )
+(defun juick-auto-update ()
+  (interactive)
+  (if juick-timer
+      (progn
+        (cancel-timer juick-timer)
+        (setq juick-timer nil)
+        (message "auto update deactivated"))
+    (setq juick-timer
+          (run-at-time "0 sec"
+                       juick-timer-interval
+                       #'juick-api-last-message))
+    (message "auto update activated")))
 
 (defun juick-api-request (juick-stanza type callback)
   "Make and process juick stanza
