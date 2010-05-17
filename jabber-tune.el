@@ -39,7 +39,23 @@
 
 ;; or other player use for example this:
 
-;; emacsclient --eval "(jabber-pep-tune-send \"AC/DC\" \"251\" \"8\" \"T.N.T.\" \"Rock'N'Roll Singer\" \"2\" \"\")"
+;; #! /bin/bash
+;;
+;; ARTIST="AC/DC"
+;; LENGTH="251"
+;; RATING="8"
+;; SOURCE="TNT"
+;; TITLE="Rock'N'Roll Singer"
+;; TRACK="2"
+;; URI=""
+;;
+;; emacsclient --eval "(jabber-pep-tune-send \"$ARTIST\" \
+;;                                           \"$LENGTH\" \
+;;                                           \"$RATING\" \
+;;                                           \"$SOURCE\" \
+;;                                           \"$TITLE\"  \
+;;                                           \"$TRACK\"  \
+;;                                           \"$URI\")"
 
 ;; info of artist getting through dbus or other tech.
 
