@@ -156,6 +156,8 @@ This plugin tested on jabber-el 0.7.82 and above.
 
 C jabber-el 0.7.1 and below the plugin does not work!
 
+If not worked RET on comment and message ID see: [#854650](http://juick.com/ap-Codkelden/854650)
+
 ### KNOW ISSUE
 
 - When sending a large image a "hang" emacs, due to the fact that
