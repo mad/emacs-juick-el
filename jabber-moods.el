@@ -25,102 +25,48 @@
 ;;; Code:
 
 (defvar jabber-mood-values
-  '("afraid"
-    "amazed"
-    "amorous"
-    "angry"
-    "annoyed"
-    "anxious"
-    "aroused"
-    "ashamed"
-    "bored"
-    "brave"
-    "calm"
-    "cautious"
-    "cold"
-    "confident"
-    "confused"
-    "contemplative"
-    "contented"
-    "cranky"
-    "crazy"
-    "creative"
-    "curious"
-    "dejected"
-    "depressed"
-    "disappointed"
-    "disgusted"
-    "dismayed"
-    "distracted"
-    "embarrassed"
-    "envious"
-    "excited"
-    "flirtatious"
-    "frustrated"
-    "grateful"
-    "grieving"
-    "grumpy"
-    "guilty"
-    "happy"
-    "hopeful"
-    "hot"
-    "humbled"
-    "humiliated"
-    "hungry"
-    "hurt"
-    "impressed"
-    "in_awe"
-    "in_love"
-    "indignant"
-    "interested"
-    "intoxicated"
-    "invincible"
-    "jealous"
-    "lonely"
-    "lost"
-    "lucky"
-    "mean"
-    "moody"
-    "nervous"
-    "neutral"
-    "offended"
-    "outraged"
-    "playful"
-    "proud"
-    "relaxed"
-    "relieved"
-    "remorseful"
-    "restless"
-    "sad"
-    "sarcastic"
-    "satisfied"
-    "serious"
-    "shocked"
-    "shy"
-    "sick"
-    "sleepy"
-    "spontaneous"
-    "stressed"
-    "strong"
-    "surprised"
-    "thankful"
-    "thirsty"
-    "tired"
-    "undefined"
-    "unknown"
-    "weak"
-    "worried"))
+  '("afraid" "amazed" "amorous" "angry" "annoyed" "anxious" "aroused"
+    "ashamed" "bored" "brave" "calm" "cautious" "cold" "confident"
+    "confused" "contemplative" "contented" "cranky" "crazy" "creative"
+    "curious" "dejected" "depressed" "disappointed" "disgusted"
+    "dismayed" "distracted" "embarrassed" "envious" "excited"
+    "flirtatious" "frustrated" "grateful" "grieving" "grumpy" "guilty"
+    "happy" "hopeful" "hot" "humbled" "humiliated" "hungry" "hurt"
+    "impressed" "in_awe" "in_love" "indignant" "interested"
+    "intoxicated" "invincible" "jealous" "lonely" "lost" "lucky"
+    "mean" "moody" "nervous" "neutral" "offended" "outraged" "playful"
+    "proud" "relaxed" "relieved" "remorseful" "restless" "sad"
+    "sarcastic" "satisfied" "serious" "shocked" "shy" "sick" "sleepy"
+    "spontaneous" "stressed" "strong" "surprised" "thankful" "thirsty"
+    "tired" "undefined" "unknown" "weak" "worried"))
 
 (defvar jabber-mood-current nil)
+
+(defmacro jabber-mood-menu ()
+  (declare (indent 1))
+  (define-key global-map [menu-bar jabber-menu mood]
+    (cons "Mood" (make-sparse-keymap "Mood")))
+  (cons 'progn
+        (mapcar (lambda (mood)
+                  `(define-key global-map [menu-bar jabber-menu mood ,(intern mood)]
+                     '(menu-item ,mood
+                                 (lambda ()
+                                   (interactive)
+                                   (setq jabber-mood-current ,mood))
+                                 :button (:radio . (string= jabber-mood-current ,mood)))))
+                jabber-mood-values)))
+
+(jabber-mood-menu)
 
 (defun jabber-mood-message ()
   (interactive)
   (add-hook 'jabber-chat-send-hooks 'jabber-mood-make-stanza)
-  (let ((mood (completing-read "Select moods: " jabber-mood-values nil t)))
-    (setq jabber-mood-current mood)))
+  (setq jabber-mood-current (completing-read (concat "Set your mood (\"" jabber-mood-current "\"): ")
+                                             jabber-mood-values nil t nil nil
+                                             jabber-mood-current)))
 
 (defun jabber-mood-make-stanza (body id)
-  (when jabber-mood-current
+  (when (member jabber-mood-current jabber-mood-values)
     (remove-hook 'jabber-chat-send-hooks 'jabber-mood-make-stanza)
     `((mood ((xmlns . "http://jabber.org/protocol/mood"))
             (,(intern jabber-mood-current))))))
