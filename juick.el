@@ -415,6 +415,7 @@ in a match, if match send fake message himself"
 
 (define-key jabber-chat-mode-map "g" 'juick-go-url)
 (define-key jabber-chat-mode-map "п" 'juick-go-url)
+(define-key jabber-chat-mode-map [mouse-1] 'juick-go-url)
 
 (define-key jabber-chat-mode-map "b" 'juick-go-bookmark)
 (define-key jabber-chat-mode-map "и" 'juick-go-bookmark)
@@ -433,6 +434,9 @@ in a match, if match send fake message himself"
 
 (define-key jabber-chat-mode-map "a" 'juick-add-tag)
 (define-key jabber-chat-mode-map "r" 'juick-remove-tag)
+
+(define-key jabber-chat-mode-map "\M-p" 'juick-go-to-post-back)
+(define-key jabber-chat-mode-map "\M-n" 'juick-go-to-post-forward)
 
 (defun juick-remove-tag ()
   (interactive)
@@ -462,10 +466,13 @@ in a match, if match send fake message himself"
 (defun juick-go-url ()
   (interactive)
   (if (and (equal (get-text-property (point) 'read-only) t)
-           (or (thing-at-point-looking-at "#\\([0-9]+\\)")
-               (thing-at-point-looking-at "@\\([0-9A-Za-z@\.\-]+\\)")))
-      (browse-url (concat "http://juick.com/"
-                          (match-string-no-properties 1)))
+           (or (thing-at-point-looking-at juick-id-regex)
+               (thing-at-point-looking-at juick-user-name-regex)))
+      (let* ((part-of-url (match-string-no-properties 1))
+             (part-of-url (replace-in-string part-of-url "@\\|#" ""))
+             (part-of-url (replace-in-string part-of-url "/" "#")))
+        (message part-of-url)
+        (browse-url (concat "http://juick.com/" part-of-url)))
     (self-insert-command 1)))
 
 (defun juick-go-bookmark ()
@@ -515,6 +522,14 @@ in a match, if match send fake message himself"
         (delete-region jabber-point-insert (point-max))
         (insert (concat "PM " (match-string-no-properties 0) " ")))
     (self-insert-command 1)))
+
+(defun juick-go-to-post-back ()
+  (interactive)
+  (re-search-backward "@[a-z0-9]+:$" nil t))
+
+(defun juick-go-to-post-forward ()
+  (interactive)
+  (re-search-forward "@[a-z0-9]+:$" nil t))
 
 (defun juick-send-message (to text)
   "Send TEXT to TO imediately"
