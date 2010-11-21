@@ -159,9 +159,10 @@ Use FORCE to markup any buffer"
       (save-excursion
         (set-buffer buffer)
         (when (null force)
-          (if (version< jabber-version "0.8.0")
+          (condition-case nil
               (jabber-truncate-top)
-            (jabber-truncate-top buffer))
+            (wrong-number-of-arguments
+             (jabber-truncate-top buffer)))
           (setq juick-point-last-message
                 (re-search-backward "\\[[0-9]+:[0-9]+\\].*>" nil t)))
         (juick-markup-user-name)
