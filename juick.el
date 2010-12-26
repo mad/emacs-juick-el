@@ -474,7 +474,8 @@ in a match, if match send fake message himself"
              (part-of-url (replace-in-string part-of-url "/" "#")))
         (message part-of-url)
         (browse-url (concat "http://juick.com/" part-of-url)))
-    (self-insert-command 1)))
+    (unless (string= last-command "mouse-drag-region")
+      (self-insert-command 1))))
 
 (defun juick-go-bookmark ()
   (interactive)
