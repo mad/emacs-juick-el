@@ -467,6 +467,8 @@ in a match, if match send fake message himself"
 (define-key jabber-chat-mode-map "p" 'juick-go-private)
 (define-key jabber-chat-mode-map "з" 'juick-go-private)
 
+(define-key jabber-chat-mode-map "m" 'juick-go-mplayer)
+
 (define-key jabber-chat-mode-map "a" 'juick-add-tag)
 (define-key jabber-chat-mode-map "r" 'juick-remove-tag)
 
@@ -510,6 +512,13 @@ in a match, if match send fake message himself"
         (browse-url (concat "http://juick.com/" part-of-url)))
     (unless (string= last-command "mouse-drag-region")
       (self-insert-command 1))))
+
+(defun juick-go-mplayer ()
+  (interactive)
+  (if (and (equal (get-text-property (point) 'read-only) t)
+           (thing-at-point-looking-at "http://i.juick.com/video/"))
+      (shell-command (concat "mplayer " (browse-url-url-at-point) "&") nil nil)
+    (self-insert-command 1)))
 
 (defun juick-go-bookmark ()
   (interactive)
