@@ -134,6 +134,10 @@ Useful for people more reading instead writing")
 
 (defvar juick-bookmarks '())
 
+;; TODO: parse last post number
+(defvar juick-random-limit 181572
+  "Usualy last post number")
+
 (defvar juick-api-aftermid nil)
 
 (defvar juick-timer-interval 120)
@@ -728,6 +732,8 @@ in a match, if match send fake message himself"
       (let* ((body (cond
                     ((string= "№" body)
                      "#")
+                    ((string= "#random" body)
+                     (concat "#"  (number-to-string (random juick-random-limit))))
                     ((string= "№+" body)
                      "#+")
                     ((string= "РУДЗ" body)
