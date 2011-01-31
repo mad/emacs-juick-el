@@ -164,5 +164,7 @@ If not worked RET on comment and message ID see: [#854650](http://juick.com/ap-C
    IBB protocol is implemented in such a way that send image no
    asynchronously.
 
+- Can not send some files (usually images), see #222870;
+
 Request for bugs/features/etc write here [#104079](http://juick.com/mad/104079)
 or mail.
