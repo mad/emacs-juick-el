@@ -731,7 +731,7 @@ in a match, if match send fake message himself"
                     ((string= "#random" body)
                      (concat "#" (number-to-string
                                   (random (string-to-number
-                                           (or juick-api-aftermid "999999"))))))
+                                           (or juick-api-aftermid "9999999"))))))
                     ((string= "№+" body)
                      "#+")
                     ((string= "РУДЗ" body)
