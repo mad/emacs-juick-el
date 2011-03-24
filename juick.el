@@ -51,8 +51,6 @@
 
 (require 'button)
 (require 'browse-url)
-(require 'epg)
-(require 'epa)
 
 ;; XXX: if jabber load through `jabber-autloads'
 (require 'jabber-chatbuffer)
@@ -118,9 +116,6 @@ Useful for people more reading instead writing")
 (defvar juick-icon-mode t
   "This mode display avatar in buffer chat")
 
-(defvar juick-use-pgp nil
-  "Trying decrypt all armored messages")
-
 (defvar juick-icon-hight nil
   "If t then show 96x96 avatars")
 
@@ -170,8 +165,6 @@ Use FORCE to markup any buffer"
              (jabber-truncate-top buffer)))
           (setq juick-point-last-message
                 (re-search-backward "\\[[0-9]+:[0-9]+\\].*>" nil t)))
-        (when juick-use-pgp
-          (juick-decrypt-pgp (point) (point-max)))
         (juick-markup-user-name)
         (juick-markup-id)
         (juick-markup-tag)
@@ -183,33 +176,6 @@ Use FORCE to markup any buffer"
           (juick-avatar-insert)))))
 
 (add-hook 'jabber-alert-message-hooks 'juick-markup-chat)
-
-(defun juick-decrypt-pgp (start end)
-  "Decrypt OpenPGP armors in the current region between START adn EDN.
-
-Based of `epa-decrypt-armor-in-region' from epa.el packages"
-  (save-excursion
-    (save-restriction
-      (narrow-to-region start end)
-      (goto-char start)
-      (let (armor-start armor-end)
-        (loop (re-search-forward "-----BEGIN PGP MESSAGE-----$" nil t)
-          (setq armor-start (match-beginning 0)
-                armor-end (re-search-forward "^-----END PGP MESSAGE-----$"
-                                             nil t))
-          (unless armor-end
-            (return))
-          (goto-char armor-start)
-          (let ((context (epg-make-context 'OpenPGP))
-                (inhibit-read-only t)
-                plain)
-            (goto-char armor-end)
-            (setq plain (decode-coding-string
-                         (epg-decrypt-string context (buffer-substring start end))
-                         'utf-8))
-            (delete-region armor-start armor-end)
-            (goto-char armor-start)
-            (insert plain)))))))
 
 (defun juick-avatar-insert ()
   (goto-char (or juick-point-last-message (point-min)))
